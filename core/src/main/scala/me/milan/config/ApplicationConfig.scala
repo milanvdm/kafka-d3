@@ -1,8 +1,12 @@
 package me.milan.config
 
+import me.milan.config.WriteSideConfig.UrlPath
 import me.milan.domain.Topic
 
-case class ApplicationConfig(kafka: KafkaConfig)
+case class ApplicationConfig(
+  kafka: KafkaConfig,
+  writeSide: WriteSideConfig
+)
 
 case class KafkaConfig(
   bootstrapServer: KafkaConfig.BootstrapServer,
@@ -25,5 +29,13 @@ object KafkaConfig {
     case class Partitions(value: Int) extends AnyVal
     case class ReplicationFactor(value: Int) extends AnyVal
   }
+
+}
+
+case class WriteSideConfig(urlPath: UrlPath)
+
+object WriteSideConfig {
+
+  case class UrlPath(value: String) extends AnyVal
 
 }

@@ -74,10 +74,13 @@ lazy val D = new {
 
   val Versions = new {
     val avro4s = "2.0.4"
-    val avroSerdes = "5.1.1"
+    val avroSerdes = "5.1.2"
     val cats = "1.6.0"
     val catsEffect = "1.2.0"
+    val catsPar = "0.2.1"
+    val circe = "0.11.1"
     val fs2 = "1.0.3"
+    val http4s = "0.20.0-M6"
     val kafka = "2.1.1"
     val kafkaSchemaRegistryClient = "5.1.1"
     val monocle = "1.5.0"
@@ -96,7 +99,14 @@ lazy val D = new {
   val avroSerdes = "io.confluent"                % "kafka-streams-avro-serde"     % Versions.avroSerdes
   val cats = "org.typelevel"                     %% "cats-core"                   % Versions.cats
   val catsEffect = "org.typelevel"               %% "cats-effect"                 % Versions.catsEffect
+  val catsPar = "io.chrisdavenport" %% "cats-par" % Versions.catsPar
+  val circe = "io.circe"                         %% "circe-core"                  % Versions.circe
+  val circeGeneric = "io.circe"                  %% "circe-generic"               % Versions.circe
   val fs2 = "co.fs2"                             %% "fs2-core"                    % Versions.fs2
+  val http4sServer = "org.http4s"                 %% "http4s-blaze-server"         % Versions.http4s
+  val http4sCirce = "org.http4s"                 %% "http4s-circe"                % Versions.http4s
+  val http4sClient = "org.http4s"                %% "http4s-blaze-client"         % Versions.http4s
+  val http4sDsl = "org.http4s"                   %% "http4s-dsl"                  % Versions.http4s
   val kafkaClient = "org.apache.kafka"           % "kafka-clients"                % Versions.kafka
   val kafkaSchemaRegistryClient = "io.confluent" % "kafka-schema-registry-client" % Versions.kafkaSchemaRegistryClient
   val kafkaStreams = "org.apache.kafka"          %% "kafka-streams-scala"         % Versions.kafka
@@ -139,7 +149,14 @@ lazy val core = Project(
       D.avroSerdes,
       D.cats,
       D.catsEffect,
+      D.catsPar,
+      D.circe,
+      D.circeGeneric,
       D.fs2,
+      D.http4sServer,
+      D.http4sCirce,
+      D.http4sClient,
+      D.http4sDsl,
       D.kafkaClient,
       D.kafkaStreams,
       D.kafkaSchemaRegistryClient,
@@ -162,7 +179,7 @@ lazy val core = Project(
 // Commands
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-addCommandAlias("update", ";dependencyUpdates; reload plugins; dependencyUpdates")
+addCommandAlias("update", ";dependencyUpdates")
 addCommandAlias("fcompile", ";scalafmtSbt;compile;it:compile")
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
