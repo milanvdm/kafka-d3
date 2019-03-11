@@ -1,9 +1,9 @@
-version: '2.1'
+version: '3.7'
 
 services:
 
   zookeeper:
-    image: confluentinc/cp-zookeeper:5.1.0
+    image: confluentinc/cp-zookeeper:5.1.2
     hostname: zookeeper
     ports:
       - "2181:2181"
@@ -12,7 +12,7 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
 
   kafka:
-    image: confluentinc/cp-enterprise-kafka:5.1.0
+    image: confluentinc/cp-enterprise-kafka:5.1.2
     hostname: kafka
     ports:
       - '9092:9092'
@@ -31,7 +31,7 @@ services:
       KAFKA_LOG4J_LOGGERS: "kafka.controller=INFO,kafka.producer.async.DefaultEventHandler=INFO,state.change.logger=INFO"
 
   kafka-schema-registry:
-    image: confluentinc/cp-schema-registry:5.1.0
+    image: confluentinc/cp-schema-registry:5.1.2
     hostname: kafka-schema-registry
     depends_on:
       - zookeeper
@@ -57,7 +57,7 @@ services:
       PROXY: "true"
 
   kafka-rest-proxy:
-    image: confluentinc/cp-kafka-rest:5.1.0
+    image: confluentinc/cp-kafka-rest:5.1.2
     hostname: kafka-rest-proxy
     ports:
       - "8082:8082"

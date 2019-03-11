@@ -79,16 +79,16 @@ lazy val D = new {
     val catsEffect = "1.2.0"
     val catsPar = "0.2.1"
     val circe = "0.11.1"
-    val fs2 = "1.0.3"
+    val fs2 = "1.0.4"
     val http4s = "0.20.0-M6"
     val kafka = "2.1.1"
-    val kafkaSchemaRegistryClient = "5.1.1"
+    val kafkaSchemaRegistryClient = "5.1.2"
     val monocle = "1.5.0"
     val pureConfig = "0.10.2"
     val scalaJava8 = "0.9.0"
 
     // Test
-    val scalaTest = "3.0.5"
+    val scalaTest = "3.0.6"
 
     // Compiler
     val kindProjector = "0.9.9"
@@ -99,11 +99,11 @@ lazy val D = new {
   val avroSerdes = "io.confluent"                % "kafka-streams-avro-serde"     % Versions.avroSerdes
   val cats = "org.typelevel"                     %% "cats-core"                   % Versions.cats
   val catsEffect = "org.typelevel"               %% "cats-effect"                 % Versions.catsEffect
-  val catsPar = "io.chrisdavenport" %% "cats-par" % Versions.catsPar
+  val catsPar = "io.chrisdavenport"              %% "cats-par"                    % Versions.catsPar
   val circe = "io.circe"                         %% "circe-core"                  % Versions.circe
   val circeGeneric = "io.circe"                  %% "circe-generic"               % Versions.circe
   val fs2 = "co.fs2"                             %% "fs2-core"                    % Versions.fs2
-  val http4sServer = "org.http4s"                 %% "http4s-blaze-server"         % Versions.http4s
+  val http4sServer = "org.http4s"                %% "http4s-blaze-server"         % Versions.http4s
   val http4sCirce = "org.http4s"                 %% "http4s-circe"                % Versions.http4s
   val http4sClient = "org.http4s"                %% "http4s-blaze-client"         % Versions.http4s
   val http4sDsl = "org.http4s"                   %% "http4s-dsl"                  % Versions.http4s

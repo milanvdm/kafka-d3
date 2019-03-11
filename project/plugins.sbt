@@ -5,4 +5,6 @@ addSbtPlugin("com.timushev.sbt" % "sbt-updates"         % "0.4.0")
 addSbtPlugin("com.scalapenos"   % "sbt-prompt"          % "1.0.2")
 addSbtPlugin("com.typesafe.sbt" % "sbt-native-packager" % "1.3.18")
 
+addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.0-M4")
+
 classpathTypes += "maven-plugin"
