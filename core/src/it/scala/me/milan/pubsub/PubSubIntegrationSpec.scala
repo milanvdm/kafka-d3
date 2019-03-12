@@ -3,35 +3,20 @@ package me.milan.pubsub
 import scala.concurrent.duration._
 
 import cats.effect.IO
-import cats.syntax.either._
 import cats.syntax.parallel._
 import org.apache.avro.generic.GenericRecord
 import org.apache.kafka.clients.producer.KafkaProducer
-import org.scalatest.{ BeforeAndAfterEach, Matchers, WordSpec }
+import org.scalatest.{Matchers, WordSpec}
 
-import me.milan.config.KafkaConfig.TopicConfig
-import me.milan.config.{ ApplicationConfig, KafkaConfig }
-import me.milan.domain.{ Key, Record, Topic }
-import me.milan.pubsub.kafka.{ KProducer, KafkaAdminClient }
+import me.milan.config.{ApplicationConfig, Config}
+import me.milan.domain.{Key, Record, Topic}
+import me.milan.kafka.KafkaTestKit
+import me.milan.pubsub.kafka.{KProducer, KafkaAdminClient}
 
-class PubSubIntegrationSpec extends WordSpec with Matchers with BeforeAndAfterEach {
+class PubSubIntegrationSpec extends WordSpec with Matchers with KafkaTestKit {
   import PubSubIntegrationSpec._
 
-  implicit val executor = scala.concurrent.ExecutionContext.global
-  implicit val cs = IO.contextShift(executor)
-  implicit val timer = IO.timer(executor)
-
-  override def beforeEach(): Unit = {
-    val program = for {
-      appConfig ← IO.fromEither(applicationConfig.asRight)
-      kafkaAdminClient = new KafkaAdminClient[IO](appConfig.kafka)
-      _ ← kafkaAdminClient.deleteAllTopics
-      _ ← IO.sleep(500.millis)
-    } yield ()
-
-    program.unsafeRunTimed(10.seconds)
-    ()
-  }
+  override val applicationConfig: ApplicationConfig = Config.create(topic)
 
   "PubSub" can {
 
@@ -74,7 +59,7 @@ class PubSubIntegrationSpec extends WordSpec with Matchers with BeforeAndAfterEa
       }
     }
 
-    "send two records with a different keys" should {
+    "send two records with different keys" should {
 
       "successfully receive the same record" in {
 
@@ -158,22 +143,6 @@ class PubSubIntegrationSpec extends WordSpec with Matchers with BeforeAndAfterEa
 object PubSubIntegrationSpec {
 
   val topic = Topic("test")
-
-  val applicationConfig = ApplicationConfig(
-    kafka = KafkaConfig(
-      KafkaConfig.BootstrapServer("localhost:9092"),
-      KafkaConfig.SchemaRegistryUrl(
-        url = "http://localhost:8081"
-      ),
-      List(
-        TopicConfig(
-          name = topic,
-          partitions = TopicConfig.Partitions(1),
-          replicationFactor = TopicConfig.ReplicationFactor(1)
-        )
-      )
-    )
-  )
 
   sealed trait Value
   case class Value1(value: String) extends Value

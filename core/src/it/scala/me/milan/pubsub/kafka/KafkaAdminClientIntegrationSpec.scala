@@ -4,30 +4,16 @@ import scala.concurrent.duration._
 
 import cats.effect.IO
 import cats.syntax.either._
-import org.scalatest.{ BeforeAndAfterEach, Matchers, WordSpec }
+import org.scalatest.{Matchers, WordSpec}
 
-import me.milan.config.KafkaConfig.TopicConfig
-import me.milan.config.{ ApplicationConfig, KafkaConfig }
+import me.milan.config.{ApplicationConfig, Config}
 import me.milan.domain.Topic
+import me.milan.kafka.KafkaTestKit
 
-class KafkaAdminClientIntegrationSpec extends WordSpec with Matchers with BeforeAndAfterEach {
+class KafkaAdminClientIntegrationSpec extends WordSpec with Matchers with KafkaTestKit {
   import KafkaAdminClientIntegrationSpec._
 
-  implicit val executor = scala.concurrent.ExecutionContext.global
-  implicit val cs = IO.contextShift(executor)
-  implicit val timer = IO.timer(executor)
-
-  override def beforeEach(): Unit = {
-    val program = for {
-      appConfig ← IO.fromEither(applicationConfig.asRight)
-      kafkaAdminClient = new KafkaAdminClient[IO](appConfig.kafka)
-      _ ← kafkaAdminClient.deleteAllTopics
-      _ ← IO.sleep(500.millis)
-    } yield ()
-
-    program.unsafeRunTimed(10.seconds)
-    ()
-  }
+  override val applicationConfig: ApplicationConfig = Config.create(topic)
 
   "KafkaAdminClient" can {
 
@@ -39,12 +25,12 @@ class KafkaAdminClientIntegrationSpec extends WordSpec with Matchers with Before
           appConfig ← IO.fromEither(applicationConfig.asRight)
           kafkaAdminClient = new KafkaAdminClient[IO](appConfig.kafka)
           _ ← kafkaAdminClient.createTopics
-          createdTopic ← kafkaAdminClient.getTopics
-        } yield createdTopic
+          createdTopics ← kafkaAdminClient.getTopics
+        } yield createdTopics
 
         val result = program.unsafeRunTimed(10.seconds)
 
-        topics should contain theSameElementsAs result.get
+        result.get.contains(topic) should be true
 
       }
 
@@ -55,12 +41,12 @@ class KafkaAdminClientIntegrationSpec extends WordSpec with Matchers with Before
           kafkaAdminClient = new KafkaAdminClient[IO](appConfig.kafka)
           _ ← kafkaAdminClient.createTopics
           _ ← kafkaAdminClient.createTopics
-          createdTopic ← kafkaAdminClient.getTopics
-        } yield createdTopic
+          createdTopics ← kafkaAdminClient.getTopics
+        } yield createdTopics
 
         val result = program.unsafeRunTimed(10.seconds)
 
-        topics should contain theSameElementsAs result.get
+        result.get.contains(topic) should be true
 
       }
 
@@ -75,8 +61,8 @@ class KafkaAdminClientIntegrationSpec extends WordSpec with Matchers with Before
           kafkaAdminClient = new KafkaAdminClient[IO](appConfig.kafka)
           _ ← kafkaAdminClient.createTopics
           _ ← kafkaAdminClient.deleteAllTopics
-          createdTopic ← kafkaAdminClient.getTopics
-        } yield createdTopic
+          createdTopics ← kafkaAdminClient.getTopics
+        } yield createdTopics
 
         val result = program.unsafeRunTimed(10.seconds).get
 
@@ -92,21 +78,6 @@ class KafkaAdminClientIntegrationSpec extends WordSpec with Matchers with Before
 
 object KafkaAdminClientIntegrationSpec {
 
-  val topics: Set[Topic] = Set(Topic("test-topic"))
+  val topic = Topic("test")
 
-  val applicationConfig = ApplicationConfig(
-    kafka = KafkaConfig(
-      KafkaConfig.BootstrapServer("localhost:9092"),
-      KafkaConfig.SchemaRegistryUrl(
-        url = "http://localhost:8081"
-      ),
-      List(
-        TopicConfig(
-          name = Topic("test-topic"),
-          partitions = TopicConfig.Partitions(1),
-          replicationFactor = TopicConfig.ReplicationFactor(1)
-        )
-      )
-    )
-  )
 }

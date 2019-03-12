@@ -3,36 +3,21 @@ package me.milan.serdes
 import scala.concurrent.duration._
 
 import cats.effect.IO
-import cats.syntax.either._
 import com.sksamuel.avro4s.AvroName
 import org.apache.avro.generic.GenericRecord
 import org.apache.kafka.clients.producer.KafkaProducer
-import org.scalatest.{ BeforeAndAfterEach, Matchers, WordSpec }
+import org.scalatest.{Matchers, WordSpec}
 
-import me.milan.config.KafkaConfig.TopicConfig
-import me.milan.config.{ ApplicationConfig, KafkaConfig }
-import me.milan.domain.{ Key, Record, Topic }
+import me.milan.config.{ApplicationConfig, Config}
+import me.milan.domain.{Key, Record, Topic}
+import me.milan.kafka.KafkaTestKit
 import me.milan.pubsub.Pub
-import me.milan.pubsub.kafka.{ KProducer, KafkaAdminClient }
+import me.milan.pubsub.kafka.{KProducer, KafkaAdminClient}
 
-class AvroSerdeIntegrationSpec extends WordSpec with Matchers with BeforeAndAfterEach {
+class AvroSerdeIntegrationSpec extends WordSpec with Matchers with KafkaTestKit {
   import AvroSerdeIntegrationSpec._
 
-  implicit val executor = scala.concurrent.ExecutionContext.global
-  implicit val cs = IO.contextShift(executor)
-  implicit val timer = IO.timer(executor)
-
-  override def beforeEach(): Unit = {
-    val program = for {
-      appConfig ← IO.fromEither(applicationConfig.asRight)
-      kafkaAdminClient = new KafkaAdminClient[IO](appConfig.kafka)
-      _ ← kafkaAdminClient.deleteAllTopics
-      _ ← IO.sleep(500.millis)
-    } yield ()
-
-    program.unsafeRunTimed(10.seconds)
-    ()
-  }
+  override val applicationConfig: ApplicationConfig = Config.create(topic)
 
   "AvroSerde" can {
 
@@ -100,22 +85,6 @@ class AvroSerdeIntegrationSpec extends WordSpec with Matchers with BeforeAndAfte
 object AvroSerdeIntegrationSpec {
 
   val topic = Topic("test")
-
-  val applicationConfig = ApplicationConfig(
-    kafka = KafkaConfig(
-      KafkaConfig.BootstrapServer("localhost:9092"),
-      KafkaConfig.SchemaRegistryUrl(
-        url = "http://localhost:8081"
-      ),
-      List(
-        TopicConfig(
-          name = topic,
-          partitions = TopicConfig.Partitions(1),
-          replicationFactor = TopicConfig.ReplicationFactor(1)
-        )
-      )
-    )
-  )
 
   trait Value
   case class Value1(value: String) extends Value
