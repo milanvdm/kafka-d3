@@ -6,13 +6,13 @@ import cats.effect.IO
 import cats.syntax.parallel._
 import org.apache.avro.generic.GenericRecord
 import org.apache.kafka.clients.producer.KafkaProducer
-import org.scalatest.{Matchers, WordSpec}
+import org.scalatest.{ Matchers, WordSpec }
 
-import me.milan.config.{ApplicationConfig, Config}
+import me.milan.config.{ ApplicationConfig, Config }
 import me.milan.domain._
 import me.milan.kafka.KafkaTestKit
-import me.milan.pubsub.kafka.{KProducer, KafkaAdminClient}
-import me.milan.pubsub.{Pub, Sub}
+import me.milan.pubsub.kafka.{ KProducer, KafkaAdminClient }
+import me.milan.pubsub.{ Pub, Sub }
 
 class KafkaWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTestKit {
   import KafkaWriteSideProcessorSpec._

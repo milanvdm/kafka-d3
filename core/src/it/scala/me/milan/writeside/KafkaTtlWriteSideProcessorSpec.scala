@@ -6,13 +6,13 @@ import cats.effect.IO
 import cats.syntax.parallel._
 import org.apache.avro.generic.GenericRecord
 import org.apache.kafka.clients.producer.KafkaProducer
-import org.scalatest.{Matchers, WordSpec}
+import org.scalatest.{ Matchers, WordSpec }
 
-import me.milan.config.{ApplicationConfig, Config}
+import me.milan.config.{ ApplicationConfig, Config }
 import me.milan.domain._
 import me.milan.kafka.KafkaTestKit
-import me.milan.pubsub.kafka.{KProducer, KafkaAdminClient}
-import me.milan.pubsub.{Pub, Sub}
+import me.milan.pubsub.kafka.{ KProducer, KafkaAdminClient }
+import me.milan.pubsub.{ Pub, Sub }
 
 class KafkaTtlWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTestKit {
   import KafkaTtlWriteSideProcessorSpec._
@@ -100,5 +100,3 @@ object KafkaTtlWriteSideProcessorSpec {
   val updated2: Record[UserUpdated] = Record(from, userId2, UserUpdated(userId2, "Milan3"), 1)
 
 }
-
-

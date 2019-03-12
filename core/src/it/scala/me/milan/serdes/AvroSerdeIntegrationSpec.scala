@@ -6,13 +6,13 @@ import cats.effect.IO
 import com.sksamuel.avro4s.AvroName
 import org.apache.avro.generic.GenericRecord
 import org.apache.kafka.clients.producer.KafkaProducer
-import org.scalatest.{Matchers, WordSpec}
+import org.scalatest.{ Matchers, WordSpec }
 
-import me.milan.config.{ApplicationConfig, Config}
-import me.milan.domain.{Key, Record, Topic}
+import me.milan.config.{ ApplicationConfig, Config }
+import me.milan.domain.{ Key, Record, Topic }
 import me.milan.kafka.KafkaTestKit
 import me.milan.pubsub.Pub
-import me.milan.pubsub.kafka.{KProducer, KafkaAdminClient}
+import me.milan.pubsub.kafka.{ KProducer, KafkaAdminClient }
 
 class AvroSerdeIntegrationSpec extends WordSpec with Matchers with KafkaTestKit {
   import AvroSerdeIntegrationSpec._

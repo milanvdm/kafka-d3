@@ -11,7 +11,7 @@ object Config {
       KafkaConfig.SchemaRegistryUrl(
         url = "http://localhost:8081"
       ),
-      topics.map { topic =>
+      topics.map { topic ⇒
         TopicConfig(
           name = topic,
           partitions = TopicConfig.Partitions(1),
