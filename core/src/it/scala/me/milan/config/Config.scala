@@ -20,7 +20,7 @@ object Config {
       }.toList
     ),
     writeSide = WriteSideConfig(
-      WriteSideConfig.UrlPath("/system")
+      WriteSideConfig.UrlPath("system")
     )
   )
 

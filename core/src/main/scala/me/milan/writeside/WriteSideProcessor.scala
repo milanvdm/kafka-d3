@@ -56,6 +56,7 @@ trait WriteSideProcessor[F[_], A] {
   def aggregateById(key: String): F[Option[A]]
   def hosts: F[Set[Uri]]
   def partitionHost(key: String): F[Option[Uri]]
+  def clean: F[Done]
   def stop: F[Done]
 
 }
@@ -90,10 +91,11 @@ private[writeside] class KafkaWriteSideProcessor[
   val eventAvroSerde = new AvroSerde[E]
   val aggregateAvroSerde = new AvroSerde[A]
 
-  lazy val stream: KafkaStreams = create
+  var stream: KafkaStreams = _
 
   override def start: F[Done] = S.delay {
     shutdownHook()
+    stream = create // Stream object needs to be recreated on startup
     stream.start()
     Done.instance
   }
@@ -132,6 +134,11 @@ private[writeside] class KafkaWriteSideProcessor[
     S.delay(
       uri
     )
+  }
+
+  override def clean: F[Done] = S.delay {
+    stream.cleanUp()
+    Done.instance
   }
 
   override def stop: F[Done] = S.delay {
@@ -220,7 +227,15 @@ private[writeside] class KafkaTimeToLiveWriteSideProcessor[
     )
   }
 
-  override def hosts: F[Set[Uri]] = ???
+  override def hosts: F[Set[Uri]] =
+    S.delay(
+      stream.allMetadata.asScala
+        .map(metadata ⇒ Uri.fromString(s"${metadata.host}:${metadata.port}"))
+        .collect {
+          case Right(uri) ⇒ uri
+        }
+        .toSet
+    )
 
   override def partitionHost(key: String): F[Option[Uri]] = {
     val metadata = stream.metadataForKey(s"store-${from.value}-${to.value}", key, Serdes.String.serializer)
@@ -233,6 +248,11 @@ private[writeside] class KafkaTimeToLiveWriteSideProcessor[
     S.delay(
       uri
     )
+  }
+
+  override def clean: F[Done] = S.delay {
+    stream.cleanUp()
+    Done.instance
   }
 
   override def stop: F[Done] = S.delay {

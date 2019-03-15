@@ -1,7 +1,7 @@
 package me.milan.serdes
 
 import org.apache.kafka.streams.scala.Serdes
-import org.scalatest.{Matchers, WordSpec}
+import org.scalatest.{ Matchers, WordSpec }
 
 class TimedGenericRecordSpec extends WordSpec with Matchers {
   import TimedGenericRecordSpec._

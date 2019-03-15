@@ -1,7 +1,7 @@
 package me.milan.serdes
 
 import com.sksamuel.avro4s.RecordFormat
-import org.scalatest.{Matchers, WordSpec}
+import org.scalatest.{ Matchers, WordSpec }
 
 import me.milan.domain.TombStone
 
@@ -32,7 +32,7 @@ class AvroSerdeSpec extends WordSpec with Matchers {
 
         val result = traitFormat.from(record)
 
-       result shouldBe key1
+        result shouldBe key1
 
       }
 

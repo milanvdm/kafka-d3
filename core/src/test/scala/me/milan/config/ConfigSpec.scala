@@ -1,6 +1,6 @@
 package me.milan.config
 
-import org.scalatest.{Matchers, WordSpec}
+import org.scalatest.{ Matchers, WordSpec }
 
 import me.milan.config.KafkaConfig.TopicConfig
 import me.milan.domain.Topic
@@ -39,6 +39,9 @@ object ConfigSpec {
           replicationFactor = TopicConfig.ReplicationFactor(1)
         )
       )
+    ),
+    writeSide = WriteSideConfig(
+      WriteSideConfig.UrlPath("system")
     )
   )
 }

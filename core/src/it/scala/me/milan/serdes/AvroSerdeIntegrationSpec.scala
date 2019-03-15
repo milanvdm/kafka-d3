@@ -12,7 +12,7 @@ import me.milan.config.{ ApplicationConfig, Config }
 import me.milan.domain.{ Key, Record, Topic }
 import me.milan.kafka.KafkaTestKit
 import me.milan.pubsub.Pub
-import me.milan.pubsub.kafka.{ KProducer, KafkaAdminClient }
+import me.milan.pubsub.kafka.KProducer
 
 class AvroSerdeIntegrationSpec extends WordSpec with Matchers with KafkaTestKit {
   import AvroSerdeIntegrationSpec._
@@ -21,30 +21,12 @@ class AvroSerdeIntegrationSpec extends WordSpec with Matchers with KafkaTestKit 
 
   "AvroSerde" can {
 
-    val kafkaAdminClient = new KafkaAdminClient[IO](applicationConfig.kafka)
-
-    implicit val kafkaProducer: KafkaProducer[String, GenericRecord] =
-      new KProducer(applicationConfig.kafka).producer
-
-    "send two different types to the same topic" should {
-
-      "successfully handle both record schemas" in {
-
-        val program = for {
-          _ ← kafkaAdminClient.createTopics
-          _ ← IO.sleep(2.seconds)
-          _ ← Pub.kafka[IO, Value1].publish(record)
-          _ ← Pub.kafka[IO, OtherValue].publish(otherRecordType)
-        } yield ()
-
-        program.unsafeRunTimed(10.seconds)
-
-      }
-    }
-
     "send a backwards compatible record type" should {
 
       "successfully register the backwards compatible schema" in {
+
+        implicit val kafkaProducer: KafkaProducer[String, GenericRecord] =
+          new KProducer(applicationConfig.kafka).producer
 
         val program = for {
           _ ← kafkaAdminClient.createTopics
@@ -60,7 +42,10 @@ class AvroSerdeIntegrationSpec extends WordSpec with Matchers with KafkaTestKit 
 
     "send a non backwards compatible record" should {
 
-      "successfully receive the same record" in {
+      "throw a SerializationException" in {
+
+        implicit val kafkaProducer: KafkaProducer[String, GenericRecord] =
+          new KProducer(applicationConfig.kafka).producer
 
         val program = for {
           _ ← kafkaAdminClient.createTopics
@@ -95,7 +80,6 @@ object AvroSerdeIntegrationSpec {
   ) extends Value
   @AvroName("Value1")
   case class BreakingValue1(newValue: Int) extends Value
-  case class OtherValue(value: String)
 
   val key = Key("key1")
   val value = Value1("value1")
@@ -103,7 +87,6 @@ object AvroSerdeIntegrationSpec {
   val breakingValue = BreakingValue1(1)
 
   val record: Record[Value1] = Record(topic, key, value, 0L)
-  val otherRecordType: Record[OtherValue] = Record(topic, key, OtherValue("otherValue"), 0L)
   val recordWithBackwardsCompatibility: Record[NewValue1] = Record(topic, key, newValue, 0L)
   val recordWithBreakingCompatibility: Record[BreakingValue1] = Record(topic, key, breakingValue, 0L)
 

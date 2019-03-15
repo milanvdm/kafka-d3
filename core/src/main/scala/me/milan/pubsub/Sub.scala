@@ -1,5 +1,7 @@
 package me.milan.pubsub
 
+import java.util.ConcurrentModificationException
+
 import scala.collection.JavaConverters._
 import scala.compat.java8.DurationConverters._
 import scala.concurrent.duration._
@@ -7,6 +9,7 @@ import scala.concurrent.duration._
 import cats.Applicative
 import cats.effect.ConcurrentEffect
 import cats.effect.concurrent.Deferred
+import cats.syntax.applicativeError._
 import cats.syntax.either._
 import cats.syntax.functor._
 import com.sksamuel.avro4s.{ Decoder, Encoder, SchemaFor }
@@ -60,13 +63,25 @@ private[pubsub] case class KafkaSub[F[_], V >: Null: SchemaFor: Decoder: Encoder
   override def poll(topic: Topic): Stream[F, Record[V]] = {
 
     val subscription = Stream
-      .eval[F, Done](subscribe(topic))
+      .eval(subscribe(topic))
       .drain
+
+    val shutdown = Stream
+      .eval {
+        C.delay {
+            kafkaConsumer.commitAsync()
+            kafkaConsumer.close()
+          }
+          .recover {
+            case _: ConcurrentModificationException ⇒ ()
+          }
+      }
 
     val poll = haltStream.flatMap { d ⇒
       Stream
         .eval {
           C.delay {
+
             val valueAvroSerde = new AvroSerde[V]
 
             val consumerRecords = kafkaConsumer
@@ -88,6 +103,7 @@ private[pubsub] case class KafkaSub[F[_], V >: Null: SchemaFor: Decoder: Encoder
         .flatMap(Stream.emits)
         .repeat
         .interruptWhen(d)
+        .onFinalize(shutdown.compile.drain)
     }
 
     subscription ++ poll

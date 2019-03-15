@@ -11,25 +11,23 @@ import org.scalatest.{ Matchers, WordSpec }
 import me.milan.config.{ ApplicationConfig, Config }
 import me.milan.domain.{ Key, Record, Topic }
 import me.milan.kafka.KafkaTestKit
-import me.milan.pubsub.kafka.{ KProducer, KafkaAdminClient }
+import me.milan.pubsub.kafka.KProducer
 
-class PubSubIntegrationSpec extends WordSpec with Matchers with KafkaTestKit {
-  import PubSubIntegrationSpec._
+class PubSubSpec extends WordSpec with Matchers with KafkaTestKit {
+  import PubSubSpec._
 
   override val applicationConfig: ApplicationConfig = Config.create(topic)
 
   "PubSub" can {
 
-    val kafkaAdminClient = new KafkaAdminClient[IO](applicationConfig.kafka)
-
     implicit val kafkaProducer: KafkaProducer[String, GenericRecord] =
       new KProducer(applicationConfig.kafka).producer
-
-    val sub = Sub.kafka[IO, Value](applicationConfig.kafka)
 
     "send one record type" should {
 
       "successfully receive the same record" in {
+
+        val sub = Sub.kafka[IO, Value](applicationConfig.kafka)
 
         val startup = for {
           _ ← kafkaAdminClient.createTopics
@@ -62,6 +60,8 @@ class PubSubIntegrationSpec extends WordSpec with Matchers with KafkaTestKit {
     "send two records with different keys" should {
 
       "successfully receive the same record" in {
+
+        val sub = Sub.kafka[IO, Value](applicationConfig.kafka)
 
         val startup = for {
           _ ← kafkaAdminClient.createTopics
@@ -102,6 +102,8 @@ class PubSubIntegrationSpec extends WordSpec with Matchers with KafkaTestKit {
 
       "successfully differentiate between 2 schemas" in {
 
+        val sub = Sub.kafka[IO, Value](applicationConfig.kafka)
+
         val startup = for {
           _ ← kafkaAdminClient.createTopics
           result ← sub
@@ -140,7 +142,7 @@ class PubSubIntegrationSpec extends WordSpec with Matchers with KafkaTestKit {
 
 }
 
-object PubSubIntegrationSpec {
+object PubSubSpec {
 
   val topic = Topic("test")
 

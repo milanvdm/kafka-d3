@@ -11,7 +11,7 @@ import org.scalatest.{ Matchers, WordSpec }
 import me.milan.config.{ ApplicationConfig, Config }
 import me.milan.domain._
 import me.milan.kafka.KafkaTestKit
-import me.milan.pubsub.kafka.{ KProducer, KafkaAdminClient }
+import me.milan.pubsub.kafka.KProducer
 import me.milan.pubsub.{ Pub, Sub }
 
 class KafkaTtlWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTestKit {
@@ -22,8 +22,6 @@ class KafkaTtlWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTe
 
   "KafkaTtlWriteSideProcessor" can {
 
-    val kafkaAdminClient = new KafkaAdminClient[IO](applicationConfig.kafka)
-
     implicit val kafkaProducer: KafkaProducer[String, GenericRecord] =
       new KProducer(applicationConfig.kafka).producer
 
@@ -33,7 +31,7 @@ class KafkaTtlWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTe
       .kafkaTimeToLive[IO, UserState, UserEvent](
         applicationConfig.kafka,
         UserAggregator,
-        "test",
+        "KafkaTtlWriteSideProcessorSpec",
         from,
         to,
         1.millis

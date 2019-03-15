@@ -18,17 +18,17 @@ trait KafkaTestKit extends BeforeAndAfterEach {
   implicit val cs = IO.contextShift(executor)
   implicit val timer = IO.timer(executor)
 
-  val kafkaAdminClient = new KafkaAdminClient[IO](applicationConfig.kafka)
-  val schemaRegistryClient = new SchemaRegistryClient[IO](applicationConfig.kafka)
+  lazy val kafkaAdminClient = new KafkaAdminClient[IO](applicationConfig.kafka)
+  lazy val schemaRegistryClient = new SchemaRegistryClient[IO](applicationConfig.kafka)
 
   override def beforeEach(): Unit = {
     val program = for {
-      _ ← kafkaAdminClient.deleteAllTopics
       _ ← schemaRegistryClient.deleteAllSchemas
-      _ ← IO.sleep(500.millis)
+      _ ← kafkaAdminClient.deleteAllTopics
+      _ ← IO.sleep(1.seconds)
     } yield ()
 
-    program.unsafeRunTimed(10.seconds)
+    program.unsafeRunTimed(2.seconds)
     ()
   }
 }

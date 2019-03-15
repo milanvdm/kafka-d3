@@ -11,8 +11,10 @@ import cats.syntax.functor._
 import cats.syntax.monadError._
 import org.apache.kafka.clients.admin.AdminClientConfig._
 import org.apache.kafka.clients.admin.{ AdminClient, NewTopic }
+import org.apache.kafka.common.errors.UnknownTopicOrPartitionException
 
 import me.milan.config.KafkaConfig
+import me.milan.config.KafkaConfig.TopicConfig
 import me.milan.domain.{ Done, Error, Topic }
 
 class KafkaAdminClient[F[_]](
@@ -27,14 +29,16 @@ class KafkaAdminClient[F[_]](
 
   private val adminClient: AdminClient = AdminClient.create(props)
 
-  def createTopics: F[Done] = {
+  def createTopics: F[Done] = createTopics(config.topics.toSet)
+
+  def createTopics(topicConfigs: Set[TopicConfig]): F[Done] = {
 
     val topicDefaultConfig: Map[String, String] = Map(
       "delete.retention.ms" → Long.MaxValue.toString,
       "retention.ms" → Long.MaxValue.toString
     )
 
-    val newTopics = config.topics.map { topicConfig ⇒
+    val newTopics = topicConfigs.map { topicConfig ⇒
       new NewTopic(
         topicConfig.name.value,
         topicConfig.partitions.value,
@@ -59,12 +63,18 @@ class KafkaAdminClient[F[_]](
       }
   }
 
-  def getTopics: F[Set[Topic]] =
+  def createTopic(topicConfig: TopicConfig): F[Done] = createTopics(Set(topicConfig))
+
+  def getTopics(ignoreSystemTopics: Boolean = true): F[Set[Topic]] =
     E.async[Set[Topic]] { cb ⇒
         adminClient.listTopics().names().whenComplete { (topics, throwable) ⇒
           cb(
             Option(throwable)
-              .toLeft(topics.asScala.toSet.filterNot(_.startsWith("_")).map(Topic))
+              .toLeft(
+                topics.asScala.toSet
+                  .filterNot(_.startsWith("_") && ignoreSystemTopics)
+                  .map(Topic)
+              )
           )
         }
         ()
@@ -73,9 +83,11 @@ class KafkaAdminClient[F[_]](
         case e ⇒ Error.System(e)
       }
 
+  def deleteTopic(topic: Topic): F[Done] = deleteTopics(Set(topic))
+
   def deleteAllTopics: F[Done] =
     for {
-      topics ← getTopics
+      topics ← getTopics()
       _ ← deleteTopics(topics)
     } yield Done
 
@@ -88,6 +100,9 @@ class KafkaAdminClient[F[_]](
             cb(Option(throwable).toLeft(Done))
           }
         ()
+      }
+      .recover {
+        case _: UnknownTopicOrPartitionException ⇒ Done
       }
       .adaptError {
         case e ⇒ Error.System(e)

@@ -167,7 +167,7 @@ lazy val core = Project(
       D.scalaTest        % "it,test"
     )
   )
-  .configs(IntegrationTest)
+  .configs(IntegrationTest extend Test)
   .settings(Defaults.itSettings)
   .settings(
     fork in IntegrationTest := true,
@@ -180,7 +180,7 @@ lazy val core = Project(
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 addCommandAlias("update", ";dependencyUpdates")
-addCommandAlias("fcompile", ";scalafmtSbt;compile;it:compile")
+addCommandAlias("fcompile", ";scalafmtSbt;compile;it:compile;test:compile")
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Plugins
