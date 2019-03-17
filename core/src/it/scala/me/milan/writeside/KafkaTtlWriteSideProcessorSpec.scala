@@ -50,7 +50,7 @@ class KafkaTtlWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTe
           _ ← kafkaAdminClient.createTopics
           _ ← writeSideProcessor.start
           result ← sub
-            .poll(to)
+            .start(to)
             .take(3)
             .compile
             .toList

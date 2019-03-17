@@ -1,4 +1,4 @@
-package me.milan.writeside.http
+package me.milan.pubsub.http
 
 import cats.effect.Sync
 import cats.syntax.apply._
@@ -10,8 +10,9 @@ import org.http4s.dsl.Http4sDsl
 
 import me.milan.config.WriteSideConfig
 import me.milan.writeside.WriteSideProcessor
+import me.milan.writeside.http.WriteSide
 
-object WriteSideRoutes {
+object PubSubRoutes {
 
   def http4sRoutes[F[_], A](
     writeSideConfig: WriteSideConfig,
@@ -22,7 +23,7 @@ object WriteSideRoutes {
     encoder: Encoder[A],
     S: Sync[F]
   ): HttpRoutes[F] =
-    new Http4sWriteSideService[F, A](
+    new Http4sPubSubService[F, A](
       writeSideConfig,
       writeSide,
       writeSideProcessor
@@ -30,7 +31,7 @@ object WriteSideRoutes {
 
 }
 
-private[http] class Http4sWriteSideService[F[_], A](
+private[http] class Http4sPubSubService[F[_], A](
   writeSideConfig: WriteSideConfig,
   writeSide: WriteSide[F, A],
   writeSideProcessor: WriteSideProcessor[F, A]
@@ -43,7 +44,7 @@ private[http] class Http4sWriteSideService[F[_], A](
   def routes: HttpRoutes[F] =
     HttpRoutes
       .of[F] {
-        case POST → (Root / writeSideConfig.urlPath.value / "start") ⇒
+        case POST → (Root / "start" / writeSideConfig.urlPath.value / "start") ⇒
           writeSide.start.compile.drain *> Ok()
         case POST → (Root / writeSideConfig.urlPath.value / "local" / "start") ⇒
           writeSideProcessor.start *> Ok()

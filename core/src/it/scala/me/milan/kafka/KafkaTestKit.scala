@@ -3,12 +3,10 @@ package me.milan.kafka
 import scala.concurrent.duration._
 
 import cats.effect.IO
-import org.scalatest.{ BeforeAndAfterEach, Suite }
+import org.scalatest.{BeforeAndAfterEach, Suite}
 
+import me.milan.clients.kafka.{KafkaAdminClient, SchemaRegistryClient}
 import me.milan.config.ApplicationConfig
-import me.milan.pubsub.kafka.KafkaAdminClient
-import me.milan.serdes.kafka.SchemaRegistryClient
-
 trait KafkaTestKit extends BeforeAndAfterEach {
   this: Suite ⇒
 

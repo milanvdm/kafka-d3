@@ -1,9 +1,10 @@
 package me.milan.pubsub.kafka
 
-import cats.effect.{ ExitCode, IO, IOApp }
+import cats.effect.{ExitCode, IO, IOApp}
 import cats.syntax.either._
 import pureconfig.generic.auto._
 
+import me.milan.clients.kafka.KafkaAdminClient
 import me.milan.config.ApplicationConfig
 import me.milan.domain.Error
 

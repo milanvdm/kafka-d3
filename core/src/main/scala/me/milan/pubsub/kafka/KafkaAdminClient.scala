@@ -25,7 +25,7 @@ class KafkaAdminClient[F[_]](
 ) {
 
   private val props = new Properties()
-  props.setProperty(BOOTSTRAP_SERVERS_CONFIG, config.bootstrapServer.value)
+  props.setProperty(BOOTSTRAP_SERVERS_CONFIG, config.bootstrapServers.map(_.value).mkString(","))
 
   private val adminClient: AdminClient = AdminClient.create(props)
 

@@ -4,9 +4,10 @@ import scala.concurrent.duration._
 
 import cats.effect.IO
 import cats.syntax.either._
-import org.scalatest.{ Matchers, WordSpec }
+import org.scalatest.{Matchers, WordSpec}
 
-import me.milan.config.{ ApplicationConfig, Config }
+import me.milan.clients.kafka.KafkaAdminClient
+import me.milan.config.{ApplicationConfig, Config}
 import me.milan.domain.Topic
 import me.milan.kafka.KafkaTestKit
 

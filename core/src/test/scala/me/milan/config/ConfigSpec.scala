@@ -28,7 +28,11 @@ object ConfigSpec {
 
   val applicationConfig = ApplicationConfig(
     kafka = KafkaConfig(
-      KafkaConfig.BootstrapServer("test"),
+      Set(
+        KafkaConfig.BootstrapServer("test1"),
+        KafkaConfig.BootstrapServer("test2"),
+        KafkaConfig.BootstrapServer("test3")
+      ),
       KafkaConfig.SchemaRegistryUrl(
         url = "test"
       ),

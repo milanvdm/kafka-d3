@@ -1,4 +1,4 @@
-package me.milan.serdes.kafka
+package me.milan.clients.kafka
 
 import scala.collection.JavaConverters._
 
@@ -11,7 +11,11 @@ import cats.syntax.traverse._
 import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient
 
 import me.milan.config.KafkaConfig
-import me.milan.domain.{ Done, Schema }
+import me.milan.domain.Done
+
+object SchemaRegistryClient {
+  case class Schema(value: String) extends AnyVal
+}
 
 class SchemaRegistryClient[F[_]](
   config: KafkaConfig
@@ -19,6 +23,7 @@ class SchemaRegistryClient[F[_]](
   implicit
   C: ConcurrentEffect[F]
 ) {
+  import SchemaRegistryClient._
 
   private val identityMapCapacity = 100
   private val schemaClient: CachedSchemaRegistryClient = new CachedSchemaRegistryClient(

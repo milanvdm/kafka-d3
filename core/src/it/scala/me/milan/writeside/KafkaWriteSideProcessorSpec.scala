@@ -44,7 +44,7 @@ class KafkaWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTestK
           _ ← kafkaAdminClient.createTopics
           _ ← writeSideProcessor.start
           result ← sub
-            .poll(to)
+            .start(to)
             .take(2)
             .compile
             .toList
@@ -84,7 +84,7 @@ class KafkaWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTestK
           _ ← kafkaAdminClient.createTopics
           _ ← writeSideProcessor.start
           result ← sub
-            .poll(to)
+            .start(to)
             .take(3)
             .compile
             .toList
@@ -125,7 +125,7 @@ class KafkaWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTestK
           _ ← kafkaAdminClient.createTopics
           _ ← writeSideProcessor.start
           result ← sub
-            .poll(to)
+            .start(to)
             .take(4)
             .compile
             .toList
@@ -171,7 +171,7 @@ class KafkaWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTestK
           _ ← kafkaAdminClient.createTopics
           _ ← writeSideProcessor.start
           result ← sub
-            .poll(to)
+            .start(to)
             .take(2)
             .compile
             .toList

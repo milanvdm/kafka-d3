@@ -79,7 +79,7 @@ private[writeside] class KafkaWriteSideProcessor[
   private val props: Properties = {
     val p = new Properties()
     p.put(StreamsConfig.APPLICATION_ID_CONFIG, name)
-    p.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, config.bootstrapServer.value)
+    p.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, config.bootstrapServers.map(_.value).mkString(","))
     p.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, StringSerde)
     p.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, KafkaAvroSerde)
     p.put(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, config.schemaRegistry.url)
@@ -93,6 +93,7 @@ private[writeside] class KafkaWriteSideProcessor[
 
   var stream: KafkaStreams = _
 
+  //TODO: Check if state is not running because stream needs to be stopped first
   override def start: F[Done] = S.delay {
     shutdownHook()
     stream = create // Stream object needs to be recreated on startup
@@ -194,7 +195,7 @@ private[writeside] class KafkaTimeToLiveWriteSideProcessor[
   private val props: Properties = {
     val p = new Properties()
     p.put(StreamsConfig.APPLICATION_ID_CONFIG, name)
-    p.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, config.bootstrapServer.value)
+    p.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, config.bootstrapServers.map(_.value).mkString(","))
     p.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, StringSerde)
     p.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, KafkaAvroSerde)
     p.put(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, config.schemaRegistry.url)
@@ -206,10 +207,12 @@ private[writeside] class KafkaTimeToLiveWriteSideProcessor[
   val eventAvroSerde = new AvroSerde[E]
   val aggregateAvroSerde = new AvroSerde[A]
 
-  lazy val stream: KafkaStreams = create
+  var stream: KafkaStreams = _
 
+  //TODO: Check if state is not running because stream needs to be stopped first
   override def start: F[Done] = S.delay {
     shutdownHook()
+    stream = create
     stream.start()
     Done.instance
   }

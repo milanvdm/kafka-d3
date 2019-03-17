@@ -32,7 +32,7 @@ class PubSubSpec extends WordSpec with Matchers with KafkaTestKit {
         val startup = for {
           _ ← kafkaAdminClient.createTopics
           result ← sub
-            .poll(topic)
+            .start(topic)
             .take(1)
             .compile
             .toList
@@ -66,7 +66,7 @@ class PubSubSpec extends WordSpec with Matchers with KafkaTestKit {
         val startup = for {
           _ ← kafkaAdminClient.createTopics
           result ← sub
-            .poll(topic)
+            .start(topic)
             .take(4)
             .compile
             .toList
@@ -107,7 +107,7 @@ class PubSubSpec extends WordSpec with Matchers with KafkaTestKit {
         val startup = for {
           _ ← kafkaAdminClient.createTopics
           result ← sub
-            .poll(topic)
+            .start(topic)
             .take(2)
             .compile
             .toList

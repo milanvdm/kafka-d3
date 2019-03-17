@@ -13,7 +13,7 @@ import me.milan.serdes._
 class KProducer(config: KafkaConfig) {
 
   private val producerProps = new Properties()
-  producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, config.bootstrapServer.value)
+  producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, config.bootstrapServers.map(_.value).mkString(","))
   producerProps.put(ProducerConfig.CLIENT_ID_CONFIG, Key.generate.value)
   producerProps.put(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, config.schemaRegistry.url)
   producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer)

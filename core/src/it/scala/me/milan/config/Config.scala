@@ -5,9 +5,15 @@ import me.milan.domain.Topic
 
 object Config {
 
+  val bootstrapServers: Set[KafkaConfig.BootstrapServer] = Set(
+    KafkaConfig.BootstrapServer("127.0.0.1:9092"),
+    KafkaConfig.BootstrapServer("127.0.0.1:9093"),
+    KafkaConfig.BootstrapServer("127.0.0.1:9094")
+  )
+
   def create(topics: Topic*) = ApplicationConfig(
     kafka = KafkaConfig(
-      KafkaConfig.BootstrapServer("localhost:9092"),
+      bootstrapServers,
       KafkaConfig.SchemaRegistryUrl(
         url = "http://localhost:8081"
       ),

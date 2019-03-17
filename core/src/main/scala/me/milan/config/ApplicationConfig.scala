@@ -9,7 +9,7 @@ case class ApplicationConfig(
 )
 
 case class KafkaConfig(
-  bootstrapServer: KafkaConfig.BootstrapServer,
+  bootstrapServers: Set[KafkaConfig.BootstrapServer],
   schemaRegistry: KafkaConfig.SchemaRegistryUrl,
   topics: List[KafkaConfig.TopicConfig]
 )
