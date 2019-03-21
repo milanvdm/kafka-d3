@@ -5,11 +5,11 @@ import scala.concurrent.duration._
 import cats.effect.IO
 import org.apache.avro.generic.GenericRecord
 import org.apache.kafka.clients.producer.KafkaProducer
-import org.scalatest.{Matchers, WordSpec}
+import org.scalatest.{ Matchers, WordSpec }
 
 import me.milan.clients.kafka.SchemaRegistryClient.Schema
-import me.milan.config.{ApplicationConfig, Config}
-import me.milan.domain.{Key, Record, Topic}
+import me.milan.config.{ ApplicationConfig, Config }
+import me.milan.domain.{ Key, Record, Topic }
 import me.milan.kafka.KafkaTestKit
 import me.milan.pubsub.Pub
 import me.milan.pubsub.kafka.KProducer

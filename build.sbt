@@ -80,7 +80,7 @@ lazy val D = new {
     val catsPar = "0.2.1"
     val circe = "0.11.1"
     val fs2 = "1.0.4"
-    val http4s = "0.20.0-M6"
+    val http4s = "0.20.0-M7"
     val kafka = "2.1.1"
     val kafkaSchemaRegistryClient = "5.1.2"
     val monocle = "1.5.0"
@@ -88,7 +88,7 @@ lazy val D = new {
     val scalaJava8 = "0.9.0"
 
     // Test
-    val scalaTest = "3.0.6"
+    val scalaTest = "3.0.7"
 
     // Compiler
     val kindProjector = "0.9.9"

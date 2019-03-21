@@ -27,33 +27,36 @@ class PubSubSpec extends WordSpec with Matchers with KafkaTestKit {
 
       "successfully receive the same record" in {
 
-        val sub = Sub.kafka[IO, Value](applicationConfig.kafka)
+        val program = Sub
+          .kafka[IO, Value](applicationConfig.kafka, topic)
+          .flatMap { sub ⇒
+            val startup = for {
+              _ ← kafkaAdminClient.createTopics
+              result ← sub.start
+                .take(1)
+                .compile
+                .toList
+            } yield result
 
-        val startup = for {
-          _ ← kafkaAdminClient.createTopics
-          result ← sub
-            .start(topic)
-            .take(1)
-            .compile
-            .toList
-        } yield result
+            val send = for {
+              _ ← IO.sleep(5.seconds)
+              _ ← Pub.kafka[IO, Value1].publish(record1)
+              _ ← IO.sleep(1.seconds)
+              _ ← sub.stop
+            } yield ()
 
-        val send = for {
-          _ ← IO.sleep(5.seconds)
-          _ ← Pub.kafka[IO, Value1].publish(record1)
-          _ ← sub.stop
-        } yield ()
-
-        val result = (startup, send)
-          .parMapN { (result, _) ⇒
-            result
+            (startup, send)
+              .parMapN { (result, _) ⇒
+                result
+              }
           }
+
+        val result = program
           .unsafeRunTimed(15.seconds)
           .getOrElse(List.empty)
           .headOption
 
         result shouldBe Option(record1)
-
       }
     }
 
@@ -61,30 +64,34 @@ class PubSubSpec extends WordSpec with Matchers with KafkaTestKit {
 
       "successfully receive the same record" in {
 
-        val sub = Sub.kafka[IO, Value](applicationConfig.kafka)
+        val program = Sub
+          .kafka[IO, Value](applicationConfig.kafka, topic)
+          .flatMap { sub ⇒
+            val startup = for {
+              _ ← kafkaAdminClient.createTopics
+              result ← sub.start
+                .take(4)
+                .compile
+                .toList
+            } yield result
 
-        val startup = for {
-          _ ← kafkaAdminClient.createTopics
-          result ← sub
-            .start(topic)
-            .take(4)
-            .compile
-            .toList
-        } yield result
+            val send = for {
+              _ ← IO.sleep(5.seconds)
+              _ ← Pub.kafka[IO, Value1].publish(record1)
+              _ ← Pub.kafka[IO, Value1].publish(record1)
+              _ ← Pub.kafka[IO, Value2].publish(record2)
+              _ ← Pub.kafka[IO, Value2].publish(record2)
+              _ ← IO.sleep(1.seconds)
+              _ ← sub.stop
+            } yield ()
 
-        val send = for {
-          _ ← IO.sleep(5.seconds)
-          _ ← Pub.kafka[IO, Value1].publish(record1)
-          _ ← Pub.kafka[IO, Value1].publish(record1)
-          _ ← Pub.kafka[IO, Value2].publish(record2)
-          _ ← Pub.kafka[IO, Value2].publish(record2)
-          _ ← sub.stop
-        } yield ()
-
-        val result = (startup, send)
-          .parMapN { (result, _) ⇒
-            result
+            (startup, send)
+              .parMapN { (result, _) ⇒
+                result
+              }
           }
+
+        val result = program
           .unsafeRunTimed(15.seconds)
           .getOrElse(List.empty)
 
@@ -102,28 +109,32 @@ class PubSubSpec extends WordSpec with Matchers with KafkaTestKit {
 
       "successfully differentiate between 2 schemas" in {
 
-        val sub = Sub.kafka[IO, Value](applicationConfig.kafka)
+        val program = Sub
+          .kafka[IO, Value](applicationConfig.kafka, topic)
+          .flatMap { sub ⇒
+            val startup = for {
+              _ ← kafkaAdminClient.createTopics
+              result ← sub.start
+                .take(2)
+                .compile
+                .toList
+            } yield result
 
-        val startup = for {
-          _ ← kafkaAdminClient.createTopics
-          result ← sub
-            .start(topic)
-            .take(2)
-            .compile
-            .toList
-        } yield result
+            val send = for {
+              _ ← IO.sleep(5.seconds)
+              _ ← Pub.kafka[IO, Value1].publish(record1)
+              _ ← Pub.kafka[IO, Value2].publish(record2)
+              _ ← IO.sleep(1.seconds)
+              _ ← sub.stop
+            } yield ()
 
-        val send = for {
-          _ ← IO.sleep(5.seconds)
-          _ ← Pub.kafka[IO, Value1].publish(record1)
-          _ ← Pub.kafka[IO, Value2].publish(record2)
-          _ ← sub.stop
-        } yield ()
-
-        (startup, send)
-          .parMapN { (result, _) ⇒
-            result
+            (startup, send)
+              .parMapN { (result, _) ⇒
+                result
+              }
           }
+
+        program
           .unsafeRunTimed(15.seconds)
           .getOrElse(List.empty)
           .map(record ⇒ (record.key, record.value))
@@ -135,7 +146,6 @@ class PubSubSpec extends WordSpec with Matchers with KafkaTestKit {
             case _ ⇒
               fail("pattern match failed on subtypes")
           }
-
       }
     }
   }

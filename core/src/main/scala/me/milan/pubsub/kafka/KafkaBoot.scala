@@ -1,6 +1,6 @@
 package me.milan.pubsub.kafka
 
-import cats.effect.{ExitCode, IO, IOApp}
+import cats.effect.{ ExitCode, IO, IOApp }
 import cats.syntax.either._
 import pureconfig.generic.auto._
 

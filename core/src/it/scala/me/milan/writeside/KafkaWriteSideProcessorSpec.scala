@@ -38,32 +38,35 @@ class KafkaWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTestK
 
       "successfully receive the correct end state" in {
 
-        val sub = Sub.kafka[IO, UserState](applicationConfig.kafka)
+        val program = Sub
+          .kafka[IO, UserState](applicationConfig.kafka, to)
+          .flatMap { sub ⇒
+            val startup = for {
+              _ ← kafkaAdminClient.createTopics
+              _ ← writeSideProcessor.start
+              result ← sub.start
+                .take(2)
+                .compile
+                .toList
+            } yield result
 
-        val startup = for {
-          _ ← kafkaAdminClient.createTopics
-          _ ← writeSideProcessor.start
-          result ← sub
-            .start(to)
-            .take(2)
-            .compile
-            .toList
-        } yield result
+            val send = for {
+              _ ← IO.sleep(1.seconds)
+              _ ← Pub.kafka[IO, UserCreated].publish(created)
+              _ ← Pub.kafka[IO, UserUpdated].publish(updated)
+              _ ← IO.sleep(5.seconds)
+              _ ← sub.stop
+              _ ← writeSideProcessor.stop
+              _ ← IO.sleep(5.seconds)
+            } yield ()
 
-        val send = for {
-          _ ← IO.sleep(1.seconds)
-          _ ← Pub.kafka[IO, UserCreated].publish(created)
-          _ ← Pub.kafka[IO, UserUpdated].publish(updated)
-          _ ← IO.sleep(5.seconds)
-          _ ← sub.stop
-          _ ← writeSideProcessor.stop
-          _ ← IO.sleep(5.seconds)
-        } yield ()
-
-        val result = (startup, send)
-          .parMapN { (result, _) ⇒
-            result
+            (startup, send)
+              .parMapN { (result, _) ⇒
+                result
+              }
           }
+
+        val result = program
           .unsafeRunTimed(20.seconds)
           .getOrElse(List.empty)
           .lastOption
@@ -78,33 +81,36 @@ class KafkaWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTestK
 
       "successfully receive the correct end state" in {
 
-        val sub = Sub.kafka[IO, UserState](applicationConfig.kafka)
+        val program = Sub
+          .kafka[IO, UserState](applicationConfig.kafka, to)
+          .flatMap { sub ⇒
+            val startup = for {
+              _ ← kafkaAdminClient.createTopics
+              _ ← writeSideProcessor.start
+              result ← sub.start
+                .take(3)
+                .compile
+                .toList
+            } yield result
 
-        val startup = for {
-          _ ← kafkaAdminClient.createTopics
-          _ ← writeSideProcessor.start
-          result ← sub
-            .start(to)
-            .take(3)
-            .compile
-            .toList
-        } yield result
+            val send = for {
+              _ ← IO.sleep(1.seconds)
+              _ ← Pub.kafka[IO, UserCreated].publish(created)
+              _ ← Pub.kafka[IO, UserUpdated].publish(updated)
+              _ ← Pub.kafka[IO, UserRemoved].publish(removed)
+              _ ← IO.sleep(5.seconds)
+              _ ← sub.stop
+              _ ← writeSideProcessor.stop
+              _ ← IO.sleep(5.seconds)
+            } yield ()
 
-        val send = for {
-          _ ← IO.sleep(1.seconds)
-          _ ← Pub.kafka[IO, UserCreated].publish(created)
-          _ ← Pub.kafka[IO, UserUpdated].publish(updated)
-          _ ← Pub.kafka[IO, UserRemoved].publish(removed)
-          _ ← IO.sleep(5.seconds)
-          _ ← sub.stop
-          _ ← writeSideProcessor.stop
-          _ ← IO.sleep(5.seconds)
-        } yield ()
-
-        val result = (startup, send)
-          .parMapN { (result, _) ⇒
-            result
+            (startup, send)
+              .parMapN { (result, _) ⇒
+                result
+              }
           }
+
+        val result = program
           .unsafeRunTimed(20.seconds)
           .getOrElse(List.empty)
           .lastOption
@@ -119,34 +125,37 @@ class KafkaWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTestK
 
       "successfully receive the correct end state" in {
 
-        val sub = Sub.kafka[IO, UserState](applicationConfig.kafka)
+        val program = Sub
+          .kafka[IO, UserState](applicationConfig.kafka, to)
+          .flatMap { sub ⇒
+            val startup = for {
+              _ ← kafkaAdminClient.createTopics
+              _ ← writeSideProcessor.start
+              result ← sub.start
+                .take(4)
+                .compile
+                .toList
+            } yield result
 
-        val startup = for {
-          _ ← kafkaAdminClient.createTopics
-          _ ← writeSideProcessor.start
-          result ← sub
-            .start(to)
-            .take(4)
-            .compile
-            .toList
-        } yield result
+            val send = for {
+              _ ← IO.sleep(1.seconds)
+              _ ← Pub.kafka[IO, UserCreated].publish(created)
+              _ ← Pub.kafka[IO, UserUpdated].publish(updated)
+              _ ← Pub.kafka[IO, UserCreated].publish(created2)
+              _ ← Pub.kafka[IO, UserUpdated].publish(updated2)
+              _ ← IO.sleep(5.seconds)
+              _ ← sub.stop
+              _ ← writeSideProcessor.stop
+              _ ← IO.sleep(5.seconds)
+            } yield ()
 
-        val send = for {
-          _ ← IO.sleep(1.seconds)
-          _ ← Pub.kafka[IO, UserCreated].publish(created)
-          _ ← Pub.kafka[IO, UserUpdated].publish(updated)
-          _ ← Pub.kafka[IO, UserCreated].publish(created2)
-          _ ← Pub.kafka[IO, UserUpdated].publish(updated2)
-          _ ← IO.sleep(5.seconds)
-          _ ← sub.stop
-          _ ← writeSideProcessor.stop
-          _ ← IO.sleep(5.seconds)
-        } yield ()
-
-        val result = (startup, send)
-          .parMapN { (result, _) ⇒
-            result
+            (startup, send)
+              .parMapN { (result, _) ⇒
+                result
+              }
           }
+
+        val result = program
           .unsafeRunTimed(20.seconds)
           .getOrElse(List.empty)
           .map(_.value)
@@ -165,36 +174,39 @@ class KafkaWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTestK
 
       "successfully receive the correct end state" in {
 
-        val sub = Sub.kafka[IO, UserState](applicationConfig.kafka)
+        val program = Sub
+          .kafka[IO, UserState](applicationConfig.kafka, to)
+          .flatMap { sub ⇒
+            val startup = for {
+              _ ← kafkaAdminClient.createTopics
+              _ ← writeSideProcessor.start
+              result ← sub.start
+                .take(2)
+                .compile
+                .toList
+            } yield result
 
-        val startup = for {
-          _ ← kafkaAdminClient.createTopics
-          _ ← writeSideProcessor.start
-          result ← sub
-            .start(to)
-            .take(2)
-            .compile
-            .toList
-        } yield result
+            val send = for {
+              _ ← IO.sleep(1.seconds)
+              _ ← Pub.kafka[IO, UserCreated].publish(created)
+              _ ← IO.sleep(3.seconds)
+              _ ← writeSideProcessor.stop
+              _ ← IO.sleep(3.seconds)
+              _ ← Pub.kafka[IO, UserUpdated].publish(updated)
+              _ ← writeSideProcessor.start
+              _ ← IO.sleep(10.seconds)
+              _ ← sub.stop
+              _ ← writeSideProcessor.stop
+              _ ← IO.sleep(5.seconds)
+            } yield ()
 
-        val send = for {
-          _ ← IO.sleep(1.seconds)
-          _ ← Pub.kafka[IO, UserCreated].publish(created)
-          _ ← IO.sleep(3.seconds)
-          _ ← writeSideProcessor.stop
-          _ ← IO.sleep(3.seconds)
-          _ ← Pub.kafka[IO, UserUpdated].publish(updated)
-          _ ← writeSideProcessor.start
-          _ ← IO.sleep(10.seconds)
-          _ ← sub.stop
-          _ ← writeSideProcessor.stop
-          _ ← IO.sleep(5.seconds)
-        } yield ()
-
-        val result = (startup, send)
-          .parMapN { (result, _) ⇒
-            result
+            (startup, send)
+              .parMapN { (result, _) ⇒
+                result
+              }
           }
+
+        val result = program
           .unsafeRunTimed(40.seconds)
           .getOrElse(List.empty)
           .lastOption

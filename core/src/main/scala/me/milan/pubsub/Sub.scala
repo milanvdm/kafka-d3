@@ -8,11 +8,10 @@ import scala.concurrent.duration._
 
 import cats.Applicative
 import cats.effect.ConcurrentEffect
-import cats.effect.concurrent.Deferred
 import cats.syntax.applicativeError._
-import cats.syntax.either._
+import cats.syntax.flatMap._
 import cats.syntax.functor._
-import com.sksamuel.avro4s.{Decoder, Encoder, SchemaFor}
+import com.sksamuel.avro4s.{ Decoder, Encoder, SchemaFor }
 import fs2.Stream
 import fs2.concurrent.SignallingRef
 import org.apache.avro.generic.GenericRecord
@@ -20,7 +19,7 @@ import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.http4s.Uri.Host
 
 import me.milan.config.KafkaConfig
-import me.milan.domain.{Done, Key, Record, Topic}
+import me.milan.domain.{ Done, Key, Record, Topic }
 import me.milan.pubsub.kafka.KConsumer
 import me.milan.serdes.AvroSerde
 
@@ -39,14 +38,19 @@ object Sub {
   )(
     implicit
     C: ConcurrentEffect[F]
-  ): Sub[F, V] = KafkaSub[F, V](config, topic)
-
+  ): F[Sub[F, V]] =
+    SignallingRef[F, Boolean](false).flatMap { pauseSignal ⇒
+      SignallingRef[F, Boolean](false).map { haltSignal ⇒
+        KafkaSub[F, V](config, topic, pauseSignal, haltSignal)
+      }
+    }
 }
 
 trait Sub[F[_], V] {
 
   def start: Stream[F, Record[V]]
   def pause: F[Done]
+  def unPause: F[Done]
   def hosts: F[Set[Host]]
   def reset: F[Done]
   def stop: F[Done]
@@ -55,19 +59,15 @@ trait Sub[F[_], V] {
 
 private[pubsub] case class KafkaSub[F[_], V >: Null: SchemaFor: Decoder: Encoder](
   config: KafkaConfig,
-  topic: Topic
+  topic: Topic,
+  pauseSignal: SignallingRef[F, Boolean],
+  haltSignal: SignallingRef[F, Boolean]
 )(
   implicit
   C: ConcurrentEffect[F]
 ) extends Sub[F, V] {
 
   private val kafkaConsumer: KafkaConsumer[String, GenericRecord] = new KConsumer(config).consumer
-
-  private val pauseSignal = SignallingRef[F, Boolean](false)
-  private val pauseStream = Stream.eval(pauseSignal)
-
-  private val halt = Deferred[F, Either[Throwable, Unit]]
-  private val haltStream = Stream.eval(halt)
 
   override def start: Stream[F, Record[V]] = {
 
@@ -88,45 +88,39 @@ private[pubsub] case class KafkaSub[F[_], V >: Null: SchemaFor: Decoder: Encoder
       }
 
     val poll =
-      pauseStream.flatMap { p =>
-        haltStream.flatMap { d ⇒
-          Stream
-            .eval {
-              C.delay {
-                val valueAvroSerde = new AvroSerde[V]
+      Stream
+        .eval {
+          C.delay {
+            val valueAvroSerde = new AvroSerde[V]
 
-                val consumerRecords = kafkaConsumer
-                  .poll(500.millis.toJava)
-                  .records(topic.value)
-                  .asScala
-                  .toList
+            val consumerRecords = kafkaConsumer
+              .poll(500.millis.toJava)
+              .records(topic.value)
+              .asScala
+              .toList
 
-                consumerRecords.map { record ⇒
-                  Record(
-                    Topic(record.topic),
-                    Key(record.key),
-                    valueAvroSerde.decode(record.value),
-                    record.timestamp
-                  )
-                }
-              }
+            consumerRecords.map { record ⇒
+              Record(
+                Topic(record.topic),
+                Key(record.key),
+                valueAvroSerde.decode(record.value),
+                record.timestamp
+              )
             }
-            .flatMap(Stream.emits)
-            .repeat
-            .pauseWhen(p)
-            .interruptWhen(d)
-            .onFinalize(shutdown.compile.drain)
+          }
         }
-      }
+        .flatMap(Stream.emits)
+        .repeat
+        .pauseWhen(pauseSignal)
+        .interruptWhen(haltSignal)
+        .onFinalize(shutdown.compile.drain)
 
     subscription ++ poll
   }
 
-  override def pause: F[Done] =
-    pauseSignal.map { p =>
-      p.set(true)
-      Done
-    }
+  override def pause: F[Done] = pauseSignal.set(true).map(_ ⇒ Done)
+
+  override def unPause: F[Done] = pauseSignal.set(false).map(_ ⇒ Done)
 
   override def hosts: F[Set[Host]] =
     ???
@@ -139,10 +133,7 @@ private[pubsub] case class KafkaSub[F[_], V >: Null: SchemaFor: Decoder: Encoder
     }
 
   //TODO: Check if stopped, it also gets removed from consumer-group or not
-  override def stop: F[Done] = halt.map { d ⇒
-    d.complete(().asRight)
-    Done
-  }
+  override def stop: F[Done] = haltSignal.set(true).map(_ ⇒ Done)
 
   /**
     * Does only start of being assigned partitions after the first poll
@@ -162,6 +153,7 @@ private[pubsub] case class MockSub[F[_], V](
 
   override def start: Stream[F, Record[V]] = stream
   override def pause: F[Done] = A.pure(Done)
+  override def unPause: F[Done] = A.pure(Done)
   override def hosts: F[Set[Host]] = A.pure(Set.empty)
   override def reset: F[Done] = A.pure(Done)
   override def stop: F[Done] = A.pure(Done)

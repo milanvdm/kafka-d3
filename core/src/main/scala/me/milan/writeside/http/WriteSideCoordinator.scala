@@ -3,7 +3,7 @@ package me.milan.writeside.http
 import scala.concurrent.duration._
 
 import cats.data.EitherT
-import cats.effect.{Sync, Timer}
+import cats.effect.{ Sync, Timer }
 import cats.instances.list._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
@@ -13,11 +13,11 @@ import fs2.Stream
 import io.circe.Decoder
 import org.http4s.circe._
 import org.http4s.client.Client
-import org.http4s.client.middleware.{Retry, RetryPolicy}
-import org.http4s.{EntityDecoder, Method, Request, Uri}
+import org.http4s.client.middleware.{ Retry, RetryPolicy }
+import org.http4s.{ EntityDecoder, Method, Request, Uri }
 
 import me.milan.config.WriteSideConfig
-import me.milan.domain.{Done, Error}
+import me.milan.domain.{ Done, Error }
 import me.milan.writeside.WriteSideProcessor
 
 object WriteSide {

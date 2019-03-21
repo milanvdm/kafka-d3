@@ -25,7 +25,7 @@ class KafkaTtlWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTe
     implicit val kafkaProducer: KafkaProducer[String, GenericRecord] =
       new KProducer(applicationConfig.kafka).producer
 
-    val sub = Sub.kafka[IO, UserState](applicationConfig.kafka)
+    val sub = Sub.kafka[IO, UserState](applicationConfig.kafka, to).unsafeRunSync()
 
     val writeSideProcessor = WriteSideProcessor
       .kafkaTimeToLive[IO, UserState, UserEvent](
@@ -49,8 +49,7 @@ class KafkaTtlWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTe
         val startup = for {
           _ ← kafkaAdminClient.createTopics
           _ ← writeSideProcessor.start
-          result ← sub
-            .start(to)
+          result ← sub.start
             .take(3)
             .compile
             .toList
