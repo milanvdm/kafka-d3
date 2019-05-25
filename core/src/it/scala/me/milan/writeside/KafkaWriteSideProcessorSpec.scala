@@ -8,9 +8,10 @@ import org.apache.avro.generic.GenericRecord
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.scalatest.{ Matchers, WordSpec }
 
-import me.milan.config.{ ApplicationConfig, Config }
+import me.milan.config.{ ApplicationConfig, TestConfig }
 import me.milan.domain._
 import me.milan.kafka.KafkaTestKit
+import me.milan.pubsub.kafka.KConsumer.ConsumerGroupId
 import me.milan.pubsub.kafka.KProducer
 import me.milan.pubsub.{ Pub, Sub }
 
@@ -18,7 +19,7 @@ class KafkaWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTestK
   import KafkaWriteSideProcessorSpec._
   import events.UserEvents._
 
-  override val applicationConfig: ApplicationConfig = Config.create(from, to)
+  override val applicationConfig: ApplicationConfig = TestConfig.create(from, to)
 
   "KafkaWriteSideProcessor" can {
 
@@ -28,6 +29,7 @@ class KafkaWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTestK
     val writeSideProcessor = WriteSideProcessor
       .kafka[IO, UserState, UserEvent](
         applicationConfig.kafka,
+        applicationConfig.writeSide,
         UserAggregator,
         "KafkaWriteSideProcessorSpec",
         from,
@@ -39,7 +41,7 @@ class KafkaWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTestK
       "successfully receive the correct end state" in {
 
         val program = Sub
-          .kafka[IO, UserState](applicationConfig.kafka, to)
+          .kafka[IO, UserState](applicationConfig.kafka, consumerGroupId, to)
           .flatMap { sub ⇒
             val startup = for {
               _ ← kafkaAdminClient.createTopics
@@ -82,7 +84,7 @@ class KafkaWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTestK
       "successfully receive the correct end state" in {
 
         val program = Sub
-          .kafka[IO, UserState](applicationConfig.kafka, to)
+          .kafka[IO, UserState](applicationConfig.kafka, consumerGroupId, to)
           .flatMap { sub ⇒
             val startup = for {
               _ ← kafkaAdminClient.createTopics
@@ -126,7 +128,7 @@ class KafkaWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTestK
       "successfully receive the correct end state" in {
 
         val program = Sub
-          .kafka[IO, UserState](applicationConfig.kafka, to)
+          .kafka[IO, UserState](applicationConfig.kafka, consumerGroupId, to)
           .flatMap { sub ⇒
             val startup = for {
               _ ← kafkaAdminClient.createTopics
@@ -175,7 +177,7 @@ class KafkaWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTestK
       "successfully receive the correct end state" in {
 
         val program = Sub
-          .kafka[IO, UserState](applicationConfig.kafka, to)
+          .kafka[IO, UserState](applicationConfig.kafka, consumerGroupId, to)
           .flatMap { sub ⇒
             val startup = for {
               _ ← kafkaAdminClient.createTopics
@@ -222,6 +224,7 @@ class KafkaWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTestK
 object KafkaWriteSideProcessorSpec {
   import events.UserEvents._
 
+  val consumerGroupId = ConsumerGroupId("test")
   val from = Topic("from")
   val to = Topic("to")
 

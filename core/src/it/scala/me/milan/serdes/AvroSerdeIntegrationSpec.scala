@@ -8,7 +8,7 @@ import org.apache.avro.generic.GenericRecord
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.scalatest.{ Matchers, WordSpec }
 
-import me.milan.config.{ ApplicationConfig, Config }
+import me.milan.config.{ ApplicationConfig, TestConfig }
 import me.milan.domain.{ Key, Record, Topic }
 import me.milan.kafka.KafkaTestKit
 import me.milan.pubsub.Pub
@@ -17,7 +17,7 @@ import me.milan.pubsub.kafka.KProducer
 class AvroSerdeIntegrationSpec extends WordSpec with Matchers with KafkaTestKit {
   import AvroSerdeIntegrationSpec._
 
-  override val applicationConfig: ApplicationConfig = Config.create(topic)
+  override val applicationConfig: ApplicationConfig = TestConfig.create(topic)
 
   "AvroSerde" can {
 

@@ -8,9 +8,10 @@ import org.apache.avro.generic.GenericRecord
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.scalatest.{ Matchers, WordSpec }
 
-import me.milan.config.{ ApplicationConfig, Config }
+import me.milan.config.{ ApplicationConfig, TestConfig }
 import me.milan.domain._
 import me.milan.kafka.KafkaTestKit
+import me.milan.pubsub.kafka.KConsumer.ConsumerGroupId
 import me.milan.pubsub.kafka.KProducer
 import me.milan.pubsub.{ Pub, Sub }
 
@@ -18,18 +19,19 @@ class KafkaTtlWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTe
   import KafkaTtlWriteSideProcessorSpec._
   import events.UserEvents._
 
-  override val applicationConfig: ApplicationConfig = Config.create(from, to)
+  override val applicationConfig: ApplicationConfig = TestConfig.create(from, to)
 
   "KafkaTtlWriteSideProcessor" can {
 
     implicit val kafkaProducer: KafkaProducer[String, GenericRecord] =
       new KProducer(applicationConfig.kafka).producer
 
-    val sub = Sub.kafka[IO, UserState](applicationConfig.kafka, to).unsafeRunSync()
+    val sub = Sub.kafka[IO, UserState](applicationConfig.kafka, consumerGroupId, to).unsafeRunSync()
 
     val writeSideProcessor = WriteSideProcessor
       .kafkaTimeToLive[IO, UserState, UserEvent](
         applicationConfig.kafka,
+        applicationConfig.writeSide,
         UserAggregator,
         "KafkaTtlWriteSideProcessorSpec",
         from,
@@ -86,6 +88,7 @@ class KafkaTtlWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTe
 object KafkaTtlWriteSideProcessorSpec {
   import events.UserEvents._
 
+  val consumerGroupId = ConsumerGroupId("test")
   val from = Topic("from")
   val to = Topic("to")
 

@@ -8,17 +8,17 @@ import org.apache.avro.generic.GenericRecord
 import org.apache.kafka.streams.scala.Serdes
 import org.apache.kafka.streams.state.{ KeyValueStore, StoreBuilder, Stores }
 
-import me.milan.config.KafkaConfig.SchemaRegistryUrl
+import me.milan.config.KafkaConfig.SchemaRegistryConfig
 import me.milan.serdes.TimedGenericRecord
 
 object KafkaStore {
 
   def kvStoreBuilder(
-    schemaRegistryConfig: SchemaRegistryUrl,
+    schemaRegistryConfig: SchemaRegistryConfig,
     storeName: String
   ): StoreBuilder[KeyValueStore[String, GenericRecord]] = {
     val serdeConfig = Map(
-      AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG → schemaRegistryConfig.url
+      AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG → schemaRegistryConfig.url.renderString
     )
 
     val valueGenericAvroSerde = new GenericAvroSerde()
@@ -34,11 +34,11 @@ object KafkaStore {
   }
 
   def kvWithTimeStoreBuilder(
-    schemaRegistryConfig: SchemaRegistryUrl,
+    schemaRegistryConfig: SchemaRegistryConfig,
     storeName: String
   ): StoreBuilder[KeyValueStore[String, TimedGenericRecord]] = {
     val serdeConfig = Map(
-      AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG → schemaRegistryConfig.url
+      AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG → schemaRegistryConfig.url.renderString
     )
 
     val genericAvroSerde = new GenericAvroSerde()

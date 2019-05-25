@@ -67,7 +67,7 @@ private[kafka] class AggregateKafkaProcessor[
 
     kvStore.put(key, encodedNewAggregate)
     processorContext.forward(key, encodedNewAggregate)
-    processorContext.commit() //TODO: can be configured based on time using a Punctuator callback
+    processorContext.commit()
   }
 
   override def close(): Unit = ()
@@ -130,7 +130,7 @@ private[kafka] class TimeToLiveAggregateKafkaProcessor[
 
     kvStore.put(key, encodedNewAggregate)
     processorContext.forward(key, encodedNewAggregate.record)
-    processorContext.commit() //TODO: can be configured based on time using a Punctuator callback
+    processorContext.commit()
   }
 
   override def close(): Unit = ()

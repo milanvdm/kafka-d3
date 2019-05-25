@@ -25,10 +25,9 @@ class SchemaRegistryClient[F[_]](
 ) {
   import SchemaRegistryClient._
 
-  private val identityMapCapacity = 100
   private val schemaClient: CachedSchemaRegistryClient = new CachedSchemaRegistryClient(
-    config.schemaRegistry.url,
-    identityMapCapacity
+    config.schemaRegistry.url.renderString,
+    config.schemaRegistry.identityMapCapacity
   )
 
   def getAllSchemas: F[Set[Schema]] = C.delay(

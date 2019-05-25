@@ -7,6 +7,8 @@ import scala.compat.java8.DurationConverters._
 import scala.concurrent.duration._
 
 import cats.effect.Sync
+import cats.instances.set._
+import cats.syntax.show._
 import com.sksamuel.avro4s.{ Decoder, Encoder, SchemaFor }
 import io.confluent.kafka.serializers.AbstractKafkaAvroSerDeConfig
 import org.apache.avro.generic.GenericRecord
@@ -17,7 +19,8 @@ import org.apache.kafka.streams.state.{ QueryableStoreTypes, StreamsMetadata }
 import org.apache.kafka.streams.{ KafkaStreams, StreamsConfig, Topology }
 import org.http4s.Uri
 
-import me.milan.config.KafkaConfig
+import me.milan.config.{ KafkaConfig, WriteSideConfig }
+import me.milan.config.KafkaConfig.BootstrapServer._
 import me.milan.domain.{ Aggregator, Done, Topic }
 import me.milan.serdes.{ AvroSerde, KafkaAvroSerde, StringSerde }
 import me.milan.writeside.kafka.{ KafkaProcessor, KafkaStore }
@@ -25,7 +28,8 @@ import me.milan.writeside.kafka.{ KafkaProcessor, KafkaStore }
 object WriteSideProcessor {
 
   def kafka[F[_], A >: Null: SchemaFor: Decoder: Encoder, E >: Null: SchemaFor: Decoder: Encoder](
-    config: KafkaConfig,
+    kafkaConfig: KafkaConfig,
+    writeSideConfig: WriteSideConfig,
     aggregator: Aggregator[A, E],
     name: String,
     from: Topic,
@@ -33,10 +37,12 @@ object WriteSideProcessor {
   )(
     implicit
     S: Sync[F]
-  ): WriteSideProcessor[F, A] = new KafkaWriteSideProcessor[F, A, E](config, aggregator, name, from, to)
+  ): WriteSideProcessor[F, A] =
+    new KafkaWriteSideProcessor[F, A, E](kafkaConfig, writeSideConfig, aggregator, name, from, to)
 
   def kafkaTimeToLive[F[_], A >: Null: SchemaFor: Decoder: Encoder, E >: Null: SchemaFor: Decoder: Encoder](
-    config: KafkaConfig,
+    kafkaConfig: KafkaConfig,
+    writeSideConfig: WriteSideConfig,
     aggregator: Aggregator[A, E],
     name: String,
     from: Topic,
@@ -46,7 +52,7 @@ object WriteSideProcessor {
     implicit
     F: Sync[F]
   ): WriteSideProcessor[F, A] =
-    new KafkaTimeToLiveWriteSideProcessor[F, A, E](config, aggregator, name, from, to, timeToLive)
+    new KafkaTimeToLiveWriteSideProcessor[F, A, E](kafkaConfig, writeSideConfig, aggregator, name, from, to, timeToLive)
 
 }
 
@@ -66,7 +72,8 @@ private[writeside] class KafkaWriteSideProcessor[
   A >: Null: SchemaFor: Decoder: Encoder,
   E >: Null: SchemaFor: Decoder: Encoder
 ](
-  config: KafkaConfig,
+  kafkaConfig: KafkaConfig,
+  writeSideConfig: WriteSideConfig,
   aggregator: Aggregator[A, E],
   name: String,
   from: Topic,
@@ -79,11 +86,11 @@ private[writeside] class KafkaWriteSideProcessor[
   private val props: Properties = {
     val p = new Properties()
     p.put(StreamsConfig.APPLICATION_ID_CONFIG, name)
-    p.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, config.bootstrapServers.map(_.value).mkString(","))
+    p.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaConfig.bootstrapServers.show)
     p.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, StringSerde)
     p.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, KafkaAvroSerde)
-    p.put(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, config.schemaRegistry.url)
-    p.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
+    p.put(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, kafkaConfig.schemaRegistry.url.renderString)
+    p.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, writeSideConfig.autoOffsetReset)
     p.put(StreamsConfig.PROCESSING_GUARANTEE_CONFIG, StreamsConfig.AT_LEAST_ONCE)
     p
   }
@@ -161,7 +168,7 @@ private[writeside] class KafkaWriteSideProcessor[
         s"source-${from.value}"
       )
       .addStateStore(
-        KafkaStore.kvStoreBuilder(config.schemaRegistry, s"store-${from.value}-${to.value}"),
+        KafkaStore.kvStoreBuilder(kafkaConfig.schemaRegistry, s"store-${from.value}-${to.value}"),
         s"process-${from.value}-${to.value}"
       )
       .addSink(s"sink-${to.value}", to.value, s"process-${from.value}-${to.value}")
@@ -181,7 +188,8 @@ private[writeside] class KafkaTimeToLiveWriteSideProcessor[
   A >: Null: SchemaFor: Decoder: Encoder,
   E >: Null: SchemaFor: Decoder: Encoder
 ](
-  config: KafkaConfig,
+  kafkaConfig: KafkaConfig,
+  writeSideConfig: WriteSideConfig,
   aggregator: Aggregator[A, E],
   name: String,
   from: Topic,
@@ -195,11 +203,11 @@ private[writeside] class KafkaTimeToLiveWriteSideProcessor[
   private val props: Properties = {
     val p = new Properties()
     p.put(StreamsConfig.APPLICATION_ID_CONFIG, name)
-    p.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, config.bootstrapServers.map(_.value).mkString(","))
+    p.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaConfig.bootstrapServers.show)
     p.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, StringSerde)
     p.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, KafkaAvroSerde)
-    p.put(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, config.schemaRegistry.url)
-    p.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
+    p.put(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, kafkaConfig.schemaRegistry.url.renderString)
+    p.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, writeSideConfig.autoOffsetReset)
     p.put(StreamsConfig.PROCESSING_GUARANTEE_CONFIG, StreamsConfig.AT_LEAST_ONCE)
     p
   }
@@ -285,7 +293,7 @@ private[writeside] class KafkaTimeToLiveWriteSideProcessor[
         s"source-${from.value}"
       )
       .addStateStore(
-        KafkaStore.kvWithTimeStoreBuilder(config.schemaRegistry, s"store-${from.value}-${to.value}"),
+        KafkaStore.kvWithTimeStoreBuilder(kafkaConfig.schemaRegistry, s"store-${from.value}-${to.value}"),
         s"process-${from.value}-${to.value}"
       )
       .addSink(s"sink-${to.value}", to.value, s"process-${from.value}-${to.value}")
