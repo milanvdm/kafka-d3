@@ -74,29 +74,29 @@ lazy val D = new {
 
   val Versions = new {
     val avro4s = "2.0.4"
-    val avroSerdes = "5.1.2"
     val cats = "1.6.0"
-    val catsEffect = "1.2.0"
+    val catsEffect = "1.3.0"
     val catsPar = "0.2.1"
     val circe = "0.11.1"
     val fs2 = "1.0.4"
-    val http4s = "0.20.0-M7"
-    val kafka = "2.1.1"
-    val kafkaSchemaRegistryClient = "5.1.2"
+    val http4s = "0.20.1"
+    val kafka = "2.2.0"
+    val kafkaConfluent = "5.2.1"
+    val kittens = "1.2.1"
     val monocle = "1.5.0"
-    val pureConfig = "0.10.2"
+    val pureConfig = "0.11.0"
     val scalaJava8 = "0.9.0"
 
     // Test
     val scalaTest = "3.0.7"
 
     // Compiler
-    val kindProjector = "0.9.9"
+    val kindProjector = "0.9.10"
     val macroParadise = "2.1.1"
   }
 
   val avro4s = "com.sksamuel.avro4s"             %% "avro4s-core"                 % Versions.avro4s
-  val avroSerdes = "io.confluent"                % "kafka-streams-avro-serde"     % Versions.avroSerdes
+  val avroSerdes = "io.confluent"                % "kafka-streams-avro-serde"     % Versions.kafkaConfluent
   val cats = "org.typelevel"                     %% "cats-core"                   % Versions.cats
   val catsEffect = "org.typelevel"               %% "cats-effect"                 % Versions.catsEffect
   val catsPar = "io.chrisdavenport"              %% "cats-par"                    % Versions.catsPar
@@ -108,8 +108,9 @@ lazy val D = new {
   val http4sClient = "org.http4s"                %% "http4s-blaze-client"         % Versions.http4s
   val http4sDsl = "org.http4s"                   %% "http4s-dsl"                  % Versions.http4s
   val kafkaClient = "org.apache.kafka"           % "kafka-clients"                % Versions.kafka
-  val kafkaSchemaRegistryClient = "io.confluent" % "kafka-schema-registry-client" % Versions.kafkaSchemaRegistryClient
+  val kafkaSchemaRegistryClient = "io.confluent" % "kafka-schema-registry-client" % Versions.kafkaConfluent
   val kafkaStreams = "org.apache.kafka"          %% "kafka-streams-scala"         % Versions.kafka
+  val kittens = "org.typelevel"                  %% "kittens"                     % Versions.kittens
   val monocle = "com.github.julien-truffaut"     %% "monocle-core"                % Versions.monocle
   val pureConfig = "com.github.pureconfig"       %% "pureconfig"                  % Versions.pureConfig
   val scalaJava8 = "org.scala-lang.modules"      %% "scala-java8-compat"          % Versions.scalaJava8
@@ -160,6 +161,7 @@ lazy val core = Project(
       D.kafkaClient,
       D.kafkaStreams,
       D.kafkaSchemaRegistryClient,
+      D.kittens,
       D.monocle,
       D.pureConfig,
       D.scalaJava8,
