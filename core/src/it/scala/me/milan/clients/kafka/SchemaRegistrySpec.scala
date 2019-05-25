@@ -1,4 +1,4 @@
-package me.milan.serdes.kafka
+package me.milan.clients.kafka
 
 import scala.concurrent.duration._
 
@@ -8,7 +8,7 @@ import org.apache.kafka.clients.producer.KafkaProducer
 import org.scalatest.{ Matchers, WordSpec }
 
 import me.milan.clients.kafka.SchemaRegistryClient.Schema
-import me.milan.config.{ ApplicationConfig, Config }
+import me.milan.config.{ ApplicationConfig, TestConfig }
 import me.milan.domain.{ Key, Record, Topic }
 import me.milan.kafka.KafkaTestKit
 import me.milan.pubsub.Pub
@@ -17,7 +17,7 @@ import me.milan.pubsub.kafka.KProducer
 class SchemaRegistrySpec extends WordSpec with Matchers with KafkaTestKit {
   import SchemaRegistrySpec._
 
-  override val applicationConfig: ApplicationConfig = Config.create(topic)
+  override val applicationConfig: ApplicationConfig = TestConfig.create(topic)
 
   "SchemaRegistryClient" can {
 
@@ -71,7 +71,7 @@ object SchemaRegistrySpec {
   val topic = Topic("test")
 
   case class Value(value: String)
-  val schema = Schema("test-me.milan.serdes.kafka.SchemaRegistrySpec.Value")
+  val schema = Schema("test-me.milan.clients.kafka.SchemaRegistrySpec.Value")
 
   val key = Key("key1")
   val value = Value("value1")
