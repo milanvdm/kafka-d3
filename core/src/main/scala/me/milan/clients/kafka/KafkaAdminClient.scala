@@ -1,117 +1,130 @@
 package me.milan.clients.kafka
 
+import java.time.OffsetDateTime
 import java.util.Properties
 
 import scala.collection.JavaConverters._
+import scala.compat.java8.DurationConverters._
+import scala.concurrent.duration._
 
-import cats.effect.ConcurrentEffect
-import cats.instances.finiteDuration._
-import cats.instances.set._
+import cats.effect.{ ConcurrentEffect, Sync }
+import cats.instances.long._
 import cats.syntax.applicativeError._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
-import cats.syntax.monadError._
 import cats.syntax.show._
+import org.apache.avro.generic.GenericRecord
 import org.apache.kafka.clients.admin.AdminClientConfig._
-import org.apache.kafka.clients.admin.{ AdminClient, ConsumerGroupDescription, MemberDescription, NewTopic }
+import org.apache.kafka.clients.admin._
+import org.apache.kafka.clients.consumer.{ KafkaConsumer, OffsetAndMetadata }
 import org.apache.kafka.common.errors.UnknownTopicOrPartitionException
+import org.apache.kafka.common.{ ConsumerGroupState, TopicPartition }
 import org.http4s.Uri
 
 import me.milan.config.KafkaConfig
 import me.milan.config.KafkaConfig.BootstrapServer._
 import me.milan.config.KafkaConfig.TopicConfig
-import me.milan.domain.{ Done, Error, Topic }
+import me.milan.domain.Topic
+import me.milan.pubsub.kafka.KConsumer
 import me.milan.pubsub.kafka.KConsumer.ConsumerGroupId
 
-class KafkaAdminClient[F[_]](
-  config: KafkaConfig
-)(
-  implicit
-  E: ConcurrentEffect[F]
+object KafkaAdminClient {
+
+  sealed trait LogOffsetResult
+  object LogOffsetResult {
+    case class LogOffset(value: Long) extends LogOffsetResult
+    case object Unknown extends LogOffsetResult
+    case object Ignore extends LogOffsetResult
+  }
+
+  def apply[F[_]: ConcurrentEffect](config: KafkaConfig): F[KafkaAdminClient[F]] =
+    for {
+      properties <- Sync[F].delay {
+        val props: Properties = new Properties()
+        props.setProperty(BOOTSTRAP_SERVERS_CONFIG, config.bootstrapServers.map(_.show).mkString(","))
+        props
+      }
+      adminClient <- Sync[F].delay(AdminClient.create(properties))
+    } yield new KafkaAdminClient[F](config, adminClient)
+
+}
+
+class KafkaAdminClient[F[_]: ConcurrentEffect](
+  config: KafkaConfig,
+  adminClient: AdminClient
 ) {
+  import KafkaAdminClient._
 
-  private val props = new Properties()
-  props.setProperty(BOOTSTRAP_SERVERS_CONFIG, config.bootstrapServers.show)
+  def createTopics: F[Unit] = createTopics(config.topics.toSet)
 
-  private val adminClient: AdminClient = AdminClient.create(props)
+  def createTopics(topicConfigs: Set[TopicConfig]): F[Unit] = {
 
-  def createTopics: F[Done] = createTopics(config.topics.toSet)
-
-  def createTopics(topicConfigs: Set[TopicConfig]): F[Done] = {
-
-    val newTopics = topicConfigs.map { topicConfig ⇒
+    val newTopics = topicConfigs.map { topicConfig =>
       new NewTopic(
         topicConfig.name.value,
         topicConfig.partitions.value,
         topicConfig.replicationFactor.value.toShort
       ).configs(
         Map(
-          "delete.retention.ms" → topicConfig.retention.show,
-          "retention.ms" → topicConfig.retention.show
+          "delete.retention.ms" -> topicConfig.retention.toMillis.show,
+          "retention.ms" -> topicConfig.retention.toMillis.show
         ).asJava
       )
     }
 
-    E.async[Done] { cb ⇒
+    ConcurrentEffect[F]
+      .async[Unit] { cb =>
         adminClient
           .createTopics(newTopics.asJavaCollection)
           .all()
-          .whenComplete { (_, throwable) ⇒
-            cb(Option(throwable).toLeft(Done.instance))
+          .whenComplete { (_, throwable) =>
+            cb(Option(throwable).toLeft(()))
           }
         ()
       }
       .handleError {
-        case _: org.apache.kafka.common.errors.TopicExistsException ⇒ Done
-      }
-      .adaptError {
-        case e ⇒ Error.System(e)
+        case _: org.apache.kafka.common.errors.TopicExistsException => ()
       }
   }
 
-  def createTopic(topicConfig: TopicConfig): F[Done] = createTopics(Set(topicConfig))
+  def createTopic(topicConfig: TopicConfig): F[Unit] = createTopics(Set(topicConfig))
 
   def getTopics(ignoreSystemTopics: Boolean = true): F[Set[Topic]] =
-    E.async[Set[Topic]] { cb ⇒
-        adminClient.listTopics().names().whenComplete { (topics, throwable) ⇒
-          cb(
-            Option(throwable)
-              .toLeft(
-                topics.asScala.toSet
-                  .filterNot(_.startsWith("_") && ignoreSystemTopics)
-                  .map(Topic)
-              )
-          )
-        }
-        ()
+    ConcurrentEffect[F].async[Set[Topic]] { cb =>
+      adminClient.listTopics().names().whenComplete { (topics, throwable) =>
+        cb(
+          Option(throwable)
+            .toLeft(
+              topics.asScala.toSet
+                .filterNot(_.startsWith("_") && ignoreSystemTopics)
+                .map(Topic)
+            )
+        )
       }
-      .adaptError {
-        case e ⇒ Error.System(e)
-      }
+      ()
+    }
 
-  def deleteTopic(topic: Topic): F[Done] = deleteTopics(Set(topic))
+  def deleteTopic(topic: Topic): F[Unit] = deleteTopics(Set(topic))
 
-  def deleteAllTopics: F[Done] =
+  def deleteAllTopics: F[Unit] =
     for {
-      topics ← getTopics()
-      _ ← deleteTopics(topics)
-    } yield Done
+      topics <- getTopics()
+      _ <- deleteTopics(topics)
+    } yield ()
 
-  private def deleteTopics(topics: Set[Topic]): F[Done] =
-    E.async[Done] { cb ⇒
+  private def deleteTopics(topics: Set[Topic]): F[Unit] =
+    ConcurrentEffect[F]
+      .async[Unit] { cb =>
         adminClient
           .deleteTopics(topics.map(_.value).asJavaCollection)
           .all
-          .whenComplete { (_, throwable) ⇒
-            cb(Option(throwable).toLeft(Done))
+          .whenComplete { (_, throwable) =>
+            cb(Option(throwable).toLeft(()))
           }
         ()
       }
       .recover {
-        case _: UnknownTopicOrPartitionException ⇒ Done
-      }
-      .adaptError {
-        case e ⇒ Error.System(e)
+        case _: UnknownTopicOrPartitionException => ()
       }
 
   def consumerGroupHosts(consumerGroupId: ConsumerGroupId): F[Set[Uri]] =
@@ -119,11 +132,12 @@ class KafkaAdminClient[F[_]](
       .map(_.map(_.host).map(Uri.unsafeFromString))
 
   def consumerGroupMembers(consumerGroupId: ConsumerGroupId): F[Set[MemberDescription]] =
-    E.async[Option[ConsumerGroupDescription]] { cb ⇒
+    ConcurrentEffect[F]
+      .async[Option[ConsumerGroupDescription]] { cb =>
         adminClient
           .describeConsumerGroups(Seq(consumerGroupId.value).asJavaCollection)
           .all
-          .whenComplete { (consumerGroups, throwable) ⇒
+          .whenComplete { (consumerGroups, throwable) =>
             cb(Option(throwable).toLeft(consumerGroups.asScala.values.headOption))
           }
         ()
@@ -131,144 +145,99 @@ class KafkaAdminClient[F[_]](
       .map(_.map(_.members.asScala.toSet))
       .map(_.getOrElse(Set.empty))
 
-//  // Based on https://github.com/apache/kafka/blob/2.1.1/core/src/main/scala/kafka/admin/ConsumerGroupCommand.scala#L300
-//  def resetConsumerGroup(consumerGroupId: ConsumerGroupId, timestamp: Long) = {
-//
-//    val consumer = new KConsumer(config, consumerGroupId).consumer
-//
-//    val partitionsToReset = E.async[List[TopicPartition]] { cb ⇒
-//      adminClient
-//        .listConsumerGroupOffsets(
-//          consumerGroupId.value,
-//          (new ListConsumerGroupOffsetsOptions).timeoutMs(1.second.toMillis.toInt)
-//        )
-//        .partitionsToOffsetAndMetadata
-//        .whenComplete { (partitionsToReset, throwable) ⇒
-//          cb(Option(throwable).toLeft(partitionsToReset.asScala.values).getOrElse(List.empty))
-//        }
-//      ()
-//    }
-//
-//    partitionsToReset.map { partitions =>
-//      consumer.assign(partitions.asJava)
-//
-//      val offsetsForTimes = consumer.offsetsForTimes(partitions.map(_ -> Long.box(timestamp)).toMap.asJava).asScala
-//      val endOffsets = consumer.endOffsets(offsetsForTimes.filter(_._2 == null).keySet.asJava)
-//
-//    }
-//
-//
-//
-//
-//
-//    val successfulLogTimestampOffsets = successfulOffsetsForTimes.map {
-//      case (topicPartition, offsetAndTimestamp) => topicPartition -> LogOffsetResult.LogOffset(offsetAndTimestamp.offset)
-//    }.toMap
-//
-//    successfulLogTimestampOffsets ++ getLogEndOffsets(unsuccessfulOffsetsForTimes.keySet.toSeq)
-//
-//
-//
-//    val offsets = getConsumer.endOffsets(topicPartitions.asJava)
-//    topicPartitions.map { topicPartition =>
-//      Option(offsets.get(topicPartition)) match {
-//        case Some(logEndOffset) => topicPartition -> LogOffsetResult.LogOffset(logEndOffset)
-//        case _ => topicPartition -> LogOffsetResult.Unknown
-//      }
-//    }.toMap
-//
-//
-//
-//
-//    partitionsToReset.map { topicPartition =>
-//      val logTimestampOffset = logTimestampOffsets.get(topicPartition)
-//      logTimestampOffset match {
-//        case Some(LogOffsetResult.LogOffset(offset)) => (topicPartition, new OffsetAndMetadata(offset))
-//        case _ => CommandLineUtils.printUsageAndDie(opts.parser, s"Error getting offset by timestamp of topic partition: $topicPartition")
-//      }
-//    }.toMap
-//
-//  }
-//
-//
-//  def resetOffsets(): Map[TopicPartition, OffsetAndMetadata] = {
-//    val groupId = opts.options.valueOf(opts.groupOpt)
-//    val consumerGroups = adminClient.describeConsumerGroups(
-//      util.Arrays.asList(groupId),
-//      withTimeoutMs(new DescribeConsumerGroupsOptions)
-//    ).describedGroups()
-//
-//    val group = consumerGroups.get(groupId).get
-//    group.state.toString match {
-//      case "Empty" | "Dead" =>
-//        val partitionsToReset = getPartitionsToReset(groupId)
-//        val preparedOffsets = prepareOffsetsToReset(groupId, partitionsToReset)
-//
-//        // Dry-run is the default behavior if --execute is not specified
-//        val dryRun = opts.options.has(opts.dryRunOpt) || !opts.options.has(opts.executeOpt)
-//        if (!dryRun)
-//          getConsumer.commitSync(preparedOffsets.asJava)
-//        preparedOffsets
-//      case currentState =>
-//        printError(s"Assignments can only be reset if the group '$groupId' is inactive, but the current state is $currentState.")
-//        Map.empty
-//    }
-//  }
-//
-//
-//
-//
-//  private def getLogTimestampOffsets(topicPartitions: Seq[TopicPartition], timestamp: java.lang.Long): Map[TopicPartition, LogOffsetResult] = {
-//    val consumer = getConsumer
-//    consumer.assign(topicPartitions.asJava)
-//
-//    val (successfulOffsetsForTimes, unsuccessfulOffsetsForTimes) =
-//      consumer.offsetsForTimes(topicPartitions.map(_ -> timestamp).toMap.asJava).asScala.partition(_._2 != null)
-//
-//    val successfulLogTimestampOffsets = successfulOffsetsForTimes.map {
-//      case (topicPartition, offsetAndTimestamp) => topicPartition -> LogOffsetResult.LogOffset(offsetAndTimestamp.offset)
-//    }.toMap
-//
-//    successfulLogTimestampOffsets ++ getLogEndOffsets(unsuccessfulOffsetsForTimes.keySet.toSeq)
-//
-//
-//    private def getLogEndOffsets(topicPartitions: Seq[TopicPartition]): Map[TopicPartition, LogOffsetResult] = {
-//      val offsets = getConsumer.endOffsets(topicPartitions.asJava)
-//      topicPartitions.map { topicPartition =>
-//        Option(offsets.get(topicPartition)) match {
-//          case Some(logEndOffset) => topicPartition -> LogOffsetResult.LogOffset(logEndOffset)
-//          case _ => topicPartition -> LogOffsetResult.Unknown
-//        }
-//      }.toMap
-//    }
-//  }
-//
-//  private def checkOffsetsRange(requestedOffsets: Map[TopicPartition, Long]) = {
-//    val logStartOffsets = getLogStartOffsets(requestedOffsets.keySet.toSeq)
-//    val logEndOffsets = getLogEndOffsets(requestedOffsets.keySet.toSeq)
-//    requestedOffsets.map { case (topicPartition, offset) => (topicPartition,
-//      logEndOffsets.get(topicPartition) match {
-//        case Some(LogOffsetResult.LogOffset(endOffset)) if offset > endOffset =>
-//          warn(s"New offset ($offset) is higher than latest offset for topic partition $topicPartition. Value will be set to $endOffset")
-//          endOffset
-//
-//        case Some(_) => logStartOffsets.get(topicPartition) match {
-//          case Some(LogOffsetResult.LogOffset(startOffset)) if offset < startOffset =>
-//            warn(s"New offset ($offset) is lower than earliest offset for topic partition $topicPartition. Value will be set to $startOffset")
-//            startOffset
-//
-//          case _ => offset
-//        }
-//
-//        case None => // the control should not reach here
-//          throw new IllegalStateException(s"Unexpected non-existing offset value for topic partition $topicPartition")
-//      })
-//    }
-//  }
-//
-//  def exportOffsetsToReset(assignmentsToReset: Map[TopicPartition, OffsetAndMetadata]): String = {
-//    val rows = assignmentsToReset.map { case (k,v) => s"${k.topic},${k.partition},${v.offset}" }(collection.breakOut): List[String]
-//    rows.foldRight("")(_ + "\n" + _)
-//  }
+  // Based on https://github.com/apache/kafka/blob/2.1.1/core/src/main/scala/kafka/admin/ConsumerGroupCommand.scala#L300
+  def resetConsumerGroup(
+    consumerGroupId: ConsumerGroupId,
+    topic: Topic,
+    timestamp: OffsetDateTime
+  ): F[Unit] =
+    for {
+      consumer <- KConsumer(config, consumerGroupId).map(_.consumer)
+      consumerGroup <- getConsumerGroup(consumerGroupId)
+      _ <- isRunning(consumerGroup)
+      partitionsToReset <- partitions(topic, consumer)
+      partitionsWithTimestampReset = resetPartitionsToTimestamp(consumer, partitionsToReset, timestamp)
+    } yield {
+      consumer.commitSync(partitionsWithTimestampReset.asJava)
+    }
+
+  private def getConsumerGroup(consumerGroupId: ConsumerGroupId): F[ConsumerGroupDescription] =
+    ConcurrentEffect[F]
+      .async[Option[ConsumerGroupDescription]] { cb =>
+        adminClient
+          .describeConsumerGroups(
+            List(consumerGroupId.value).asJavaCollection
+          )
+          .all
+          .whenComplete { (consumerGroups, throwable) =>
+            cb(Option(throwable).toLeft(consumerGroups.asScala.get(consumerGroupId.value)))
+          }
+        ()
+      }
+      .flatMap {
+        case Some(consumerGroup) => ConcurrentEffect[F].pure(consumerGroup)
+        case None                => ConcurrentEffect[F].raiseError(new IllegalArgumentException("Cannot find the consumerGroupId"))
+      }
+
+  private def isRunning(consumerGroup: ConsumerGroupDescription): F[Unit] =
+    consumerGroup.state match {
+      case ConsumerGroupState.DEAD | ConsumerGroupState.EMPTY => ConcurrentEffect[F].pure(())
+      case _                                                  => ConcurrentEffect[F].raiseError(new IllegalStateException("Cannot reset a running consumer-group"))
+    }
+
+  private def partitions(
+    topic: Topic,
+    consumer: KafkaConsumer[String, GenericRecord]
+  ): F[List[TopicPartition]] =
+    ConcurrentEffect[F].delay(
+      consumer
+        .partitionsFor(topic.value, 1.second.toJava)
+        .asScala
+        .map(partitionInfo => new TopicPartition(topic.value, partitionInfo.partition))
+        .toList
+    ) //TODO: throws NPE when topic does not exist
+
+  private def resetPartitionsToTimestamp(
+    consumer: KafkaConsumer[String, GenericRecord],
+    partitions: List[TopicPartition],
+    timestamp: OffsetDateTime
+  ): Map[TopicPartition, OffsetAndMetadata] = {
+    consumer.assign(partitions.asJava)
+
+    val timestampEpoch = Long.box(timestamp.toInstant.toEpochMilli)
+
+    val (successfulOffsetsForTimes, unsuccessfulOffsetsForTimes) =
+      consumer
+        .offsetsForTimes(partitions.map(_ -> timestampEpoch).toMap.asJava)
+        .asScala
+        .partition(_._2 != null)
+
+    val successfulLogTimestampOffsets = successfulOffsetsForTimes
+      .mapValues(offsetAndTimestamp => LogOffsetResult.LogOffset(offsetAndTimestamp.offset))
+      .toMap
+
+    val endOffsets = consumer
+      .endOffsets(unsuccessfulOffsetsForTimes.keySet.asJava)
+      .asScala
+      .toMap
+
+    val unsuccessfulLogTimestampOffsets = unsuccessfulOffsetsForTimes.keySet.map { topicPartition =>
+      endOffsets.get(topicPartition) match {
+        case Some(logEndOffset) => topicPartition -> LogOffsetResult.LogOffset(logEndOffset)
+        case None               => topicPartition -> LogOffsetResult.Unknown
+      }
+    }.toMap
+
+    val logTimestampOffsets = successfulLogTimestampOffsets ++ unsuccessfulLogTimestampOffsets
+
+    partitions.flatMap { topicPartition =>
+      val logTimestampOffset = logTimestampOffsets.get(topicPartition)
+      logTimestampOffset match {
+        case Some(LogOffsetResult.LogOffset(offset)) => List(topicPartition -> new OffsetAndMetadata(offset))
+        case _                                       => List.empty
+      }
+    }.toMap
+
+  }
 
 }

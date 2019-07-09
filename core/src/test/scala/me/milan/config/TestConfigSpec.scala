@@ -15,17 +15,17 @@ class TestConfigSpec extends WordSpec with Matchers {
 
   "Configuration" can {
 
-    "ApplicationConfig" should {
+      "ApplicationConfig" should {
 
-      "be correctly parsed" in {
+        "be correctly parsed" in {
 
-        val result = Config.stream[IO].compile.lastOrError.unsafeRunSync
+          val result = Config.stream[IO].compile.lastOrError.unsafeRunSync
 
-        result shouldBe applicationConfig
+          result shouldBe applicationConfig
 
+        }
       }
     }
-  }
 }
 
 object TestConfigSpec {
@@ -33,12 +33,12 @@ object TestConfigSpec {
   val applicationConfig = ApplicationConfig(
     kafka = KafkaConfig(
       Set(
-        KafkaConfig.BootstrapServer("test1"),
-        KafkaConfig.BootstrapServer("test2"),
-        KafkaConfig.BootstrapServer("test3")
+        KafkaConfig.BootstrapServer(Uri.unsafeFromString("test1:8080")),
+        KafkaConfig.BootstrapServer(Uri.unsafeFromString("test2:8080")),
+        KafkaConfig.BootstrapServer(Uri.unsafeFromString("test3:8080"))
       ),
       KafkaConfig.SchemaRegistryConfig(
-        url = Uri.unsafeFromString("http://test.com"),
+        uri = Uri.unsafeFromString("http://test.com"),
         identityMapCapacity = 2000
       ),
       List(

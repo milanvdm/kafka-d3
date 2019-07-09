@@ -10,8 +10,8 @@ class AvroSerde[T >: Null: SchemaFor: Decoder: Encoder] {
   private val format = RecordFormat[T]
 
   def encode(record: T): GenericRecord = record match {
-    case _: TombStone ⇒ null
-    case _            ⇒ format.to(record)
+    case _: TombStone => null
+    case _            => format.to(record)
   }
 
   def decode(avroRecord: GenericRecord): T =

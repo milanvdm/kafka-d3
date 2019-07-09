@@ -17,7 +17,7 @@ import org.http4s.client.middleware.{ Retry, RetryPolicy }
 import org.http4s.{ EntityDecoder, Method, Request, Uri }
 
 import me.milan.config.WriteSideConfig
-import me.milan.domain.{ Done, Error }
+import me.milan.domain.Error
 import me.milan.writeside.WriteSideProcessor
 
 object WriteSide {
@@ -38,9 +38,9 @@ object WriteSide {
 
 trait WriteSide[F[_], A] {
 
-  def start: Stream[F, Done]
+  def start: Stream[F, Unit]
   def aggregateById(key: String): Stream[F, A]
-  def stop: Stream[F, Done]
+  def stop: Stream[F, Unit]
 
 }
 
@@ -58,12 +58,15 @@ private[writeside] class DistributedWriteSide[F[_], A](
 
   //TODO: Double check if this works as `writeSideProcessor.hosts` probably does not know the hosts from stopped nodes
   //TODO: Use service-discovery instead
-  override def start: Stream[F, Done] = {
+
+//  for(InetAddress addr : InetAddress.getAllByName("stackoverflow.com"))
+//      System.out.println(addr.getHostAddress());
+  override def start: Stream[F, Unit] = {
     val local = Stream.eval(writeSideProcessor.start)
     val distributed = DistributedWriteSide.allNodesOk(
       httpClient,
       writeSideProcessor.hosts _,
-      uri ⇒ Request[F](Method.POST, uri / writeSideConfig.urlPath.value / "local" / "start")
+      uri => Request[F](Method.POST, uri / writeSideConfig.urlPath.value / "local" / "start")
     )
 
     local ++ distributed
@@ -74,22 +77,22 @@ private[writeside] class DistributedWriteSide[F[_], A](
     val local = Stream.eval(writeSideProcessor.aggregateById(key))
 
     local.flatMap {
-      case Some(aggregate) ⇒ Stream.emit(aggregate)
-      case None ⇒
+      case Some(aggregate) => Stream.emit(aggregate)
+      case None =>
         DistributedWriteSide.requestNode[F, A](
           httpClient,
-          () ⇒ writeSideProcessor.partitionHost(key),
-          uri ⇒ Request[F](Method.GET, uri / writeSideConfig.urlPath.value / key)
+          () => writeSideProcessor.partitionHost(key),
+          uri => Request[F](Method.GET, uri / writeSideConfig.urlPath.value / key)
         )
     }
   }
 
-  override def stop: Stream[F, Done] = {
+  override def stop: Stream[F, Unit] = {
     val local = Stream.eval(writeSideProcessor.stop)
     val distributed = DistributedWriteSide.allNodesOk(
       httpClient,
       writeSideProcessor.hosts _,
-      uri ⇒ Request[F](Method.POST, uri / writeSideConfig.urlPath.value / "local" / "stop")
+      uri => Request[F](Method.POST, uri / writeSideConfig.urlPath.value / "local" / "stop")
     )
 
     local ++ distributed
@@ -101,8 +104,8 @@ object DistributedWriteSide {
 
   def requestNode[F[_], A](
     httpClient: Client[F],
-    host: () ⇒ F[Option[Uri]],
-    toRequest: Uri ⇒ Request[F]
+    host: () => F[Option[Uri]],
+    toRequest: Uri => Request[F]
   )(
     implicit
     decoder: Decoder[A],
@@ -115,9 +118,9 @@ object DistributedWriteSide {
     implicit val jsonDecoder: EntityDecoder[F, A] = jsonOf[F, A]
 
     val response = (for {
-      foundHost ← EitherT.fromOptionF(host(), Error.KeyNotFound)
+      foundHost <- EitherT.fromOptionF(host(), Error.KeyNotFound)
       request = toRequest(foundHost)
-      response ← EitherT.liftF[F, Throwable, A](retryClient.expect(request))
+      response <- EitherT.liftF[F, Throwable, A](retryClient.expect(request))
     } yield response).value
 
     val result = S.rethrow(response)
@@ -127,23 +130,23 @@ object DistributedWriteSide {
 
   def allNodesOk[F[_]](
     httpClient: Client[F],
-    hosts: () ⇒ F[Set[Uri]],
-    toRequest: Uri ⇒ Request[F]
+    hosts: () => F[Set[Uri]],
+    toRequest: Uri => Request[F]
   )(
     implicit
     P: Par[F],
     T: Timer[F],
     S: Sync[F]
-  ): Stream[F, Done] = {
+  ): Stream[F, Unit] = {
     val policy = RetryPolicy[F](RetryPolicy.exponentialBackoff(2.seconds, maxRetry = 3))
     val retryClient = Retry[F](policy)(httpClient)
 
-    val response: F[Throwable Either Done] = for {
-      foundHosts ← hosts()
-      requests ← S.delay(foundHosts.toList.map(toRequest))
-      responses ← requests.parTraverse(retryClient.successful)
+    val response: F[Throwable Either Unit] = for {
+      foundHosts <- hosts()
+      requests <- S.delay(foundHosts.toList.map(toRequest))
+      responses <- requests.parTraverse(retryClient.successful)
       allSuccess = !responses.contains(false)
-    } yield Either.cond[Throwable, Done](allSuccess, Done.instance, Error.HostNotFound)
+    } yield Either.cond[Throwable, Unit](allSuccess, (), Error.HostNotFound)
 
     val result = S.rethrow(response)
 

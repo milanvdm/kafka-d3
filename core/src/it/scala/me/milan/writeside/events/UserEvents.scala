@@ -32,11 +32,11 @@ object UserEvents {
       previous: Option[UserState],
       event: UserEvent
     ): UserState = event match {
-      case UserCreated(key, name) ⇒
+      case UserCreated(key, name) =>
         User(key, name, "created")
-      case UserUpdated(key, name) ⇒
+      case UserUpdated(key, name) =>
         User(key, name, "updated")
-      case UserRemoved(id) ⇒
+      case UserRemoved(id) =>
         UserTomb(id)
     }
   }

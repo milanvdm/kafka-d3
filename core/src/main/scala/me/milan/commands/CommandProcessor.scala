@@ -4,7 +4,6 @@ import cats.Monad
 import cats.syntax.flatMap._
 import cats.syntax.functor._
 
-import me.milan.domain.Done
 import me.milan.pubsub.Pub
 
 object CommandProcessor {
@@ -20,7 +19,7 @@ object CommandProcessor {
 
 trait CommandProcessor[F[_], V] {
 
-  def process(command: Command): F[Done]
+  def process(command: Command): F[Unit]
 
 }
 
@@ -31,10 +30,10 @@ private[commands] case class DummyCommandProcessor[F[_], V](
   M: Monad[F]
 ) extends CommandProcessor[F, V] {
 
-  override def process(command: Command): F[Done] =
+  override def process(command: Command): F[Unit] =
     for {
-      event ← command.verify[F, V]
-      result ← pub.publish(event)
+      event <- command.verify[F, V]
+      result <- pub.publish(event)
     } yield result
 
 }

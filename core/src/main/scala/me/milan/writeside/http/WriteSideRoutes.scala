@@ -43,15 +43,15 @@ private[http] class Http4sWriteSideService[F[_], A](
   def routes: HttpRoutes[F] =
     HttpRoutes
       .of[F] {
-        case POST → (Root / writeSideConfig.urlPath.value / "start") ⇒
+        case POST -> (Root / writeSideConfig.urlPath.value / "start") =>
           writeSide.start.compile.drain *> Ok()
-        case POST → (Root / writeSideConfig.urlPath.value / "local" / "start") ⇒
+        case POST -> (Root / writeSideConfig.urlPath.value / "local" / "start") =>
           writeSideProcessor.start *> Ok()
-        case GET → (Root / writeSideConfig.urlPath.value / UUIDVar(key)) ⇒
+        case GET -> (Root / writeSideConfig.urlPath.value / UUIDVar(key)) =>
           Ok(writeSide.aggregateById(key.toString).map(_.asJson))
-        case POST → (Root / writeSideConfig.urlPath.value / "stop") ⇒
+        case POST -> (Root / writeSideConfig.urlPath.value / "stop") =>
           writeSide.stop.compile.drain *> Ok()
-        case POST → (Root / writeSideConfig.urlPath.value / "local" / "stop") ⇒
+        case POST -> (Root / writeSideConfig.urlPath.value / "local" / "stop") =>
           writeSideProcessor.stop *> Ok()
       }
 

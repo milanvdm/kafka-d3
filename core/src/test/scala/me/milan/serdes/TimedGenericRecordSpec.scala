@@ -8,22 +8,22 @@ class TimedGenericRecordSpec extends WordSpec with Matchers {
 
   "TimedGenericRecord" can {
 
-    "encode and decode a Long" should {
+      "encode and decode a Long" should {
 
-      "successfully give back the same number" in {
+        "successfully give back the same number" in {
 
-        val bytes = Serdes.Long.serializer.serialize("test", timestamp)
-        val result = Serdes.Long.deserializer.deserialize(
-          "test",
-          bytes
-        )
+          val bytes = Serdes.Long.serializer.serialize("test", timestamp)
+          val result = Serdes.Long.deserializer.deserialize(
+            "test",
+            bytes
+          )
 
-        bytes should have size 8
-        result shouldBe timestamp
+          bytes should have size 8
+          result shouldBe timestamp
 
+        }
       }
     }
-  }
 
 }
 

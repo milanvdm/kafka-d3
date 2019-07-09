@@ -9,15 +9,15 @@ import pureconfig.error.CannotConvert
 
 package object config {
 
-  implicit val urlConfigReader: ConfigReader[Uri] = ConfigReader[String].emap { urlAsString ⇒
-    Uri.fromString(urlAsString).left.map { failure ⇒
+  implicit val urlConfigReader: ConfigReader[Uri] = ConfigReader[String].emap { urlAsString =>
+    Uri.fromString(urlAsString).left.map { failure =>
       CannotConvert(value = urlAsString, toType = "Uri", because = failure.sanitized)
     }
   }
 
   implicit val autoOffsetResetConfigReader: ConfigReader[AutoOffsetReset] =
-    ConfigReader[String].emap { autoOffsetAsString ⇒
-      Try(AutoOffsetReset.valueOf(autoOffsetAsString.toUpperCase)).toEither.left.map { failure ⇒
+    ConfigReader[String].emap { autoOffsetAsString =>
+      Try(AutoOffsetReset.valueOf(autoOffsetAsString.toUpperCase)).toEither.left.map { failure =>
         CannotConvert(value = autoOffsetAsString, toType = "AutoOffsetReset", because = failure.getMessage)
       }
     }

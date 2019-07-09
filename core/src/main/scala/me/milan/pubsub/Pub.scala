@@ -6,7 +6,7 @@ import com.sksamuel.avro4s.{ Decoder, Encoder, SchemaFor }
 import org.apache.avro.generic.GenericRecord
 import org.apache.kafka.clients.producer.{ Callback, KafkaProducer, ProducerRecord, RecordMetadata }
 
-import me.milan.domain.{ Done, Record }
+import me.milan.domain.Record
 import me.milan.serdes.AvroSerde
 
 object Pub {
@@ -16,32 +16,29 @@ object Pub {
     A: Applicative[F]
   ): Pub[F, V] = MockPub[F, V]
 
-  def kafka[F[_], V >: Null: SchemaFor: Decoder: Encoder](
+  def kafka[F[_]: ConcurrentEffect, V >: Null: SchemaFor: Decoder: Encoder](
     implicit
-    C: ConcurrentEffect[F],
-    KafkaProducer: KafkaProducer[String, GenericRecord]
-  ): Pub[F, V] = KafkaPub[F, V]()
+    kafkaProducer: KafkaProducer[String, GenericRecord]
+  ): Pub[F, V] = new KafkaPub[F, V]
 
 }
 
 trait Pub[F[_], V] {
 
-  def publish(record: Record[V]): F[Done]
+  def publish(record: Record[V]): F[Unit]
 
 }
 
-private[pubsub] case class KafkaPub[F[_], V >: Null: SchemaFor: Decoder: Encoder](
-)(
+private[pubsub] class KafkaPub[F[_]: ConcurrentEffect, V >: Null: SchemaFor: Decoder: Encoder](
   implicit
-  C: ConcurrentEffect[F],
-  KafkaProducer: KafkaProducer[String, GenericRecord]
+  kafkaProducer: KafkaProducer[String, GenericRecord]
 ) extends Pub[F, V] {
 
-  override def publish(record: Record[V]): F[Done] =
-    C.async { cb ⇒
+  override def publish(record: Record[V]): F[Unit] =
+    ConcurrentEffect[F].async { cb =>
       val valueAvroSerde = new AvroSerde[V]
 
-      KafkaProducer
+      kafkaProducer
         .send(
           new ProducerRecord(
             record.topic.value,
@@ -51,14 +48,14 @@ private[pubsub] case class KafkaPub[F[_], V >: Null: SchemaFor: Decoder: Encoder
             valueAvroSerde.encode(record.value)
           ),
           callback {
-            case (_, throwable) ⇒
-              cb(Option(throwable).toLeft(Done.instance))
+            case (_, throwable) =>
+              cb(Option(throwable).toLeft(()))
           }
         )
       ()
     }
 
-  private def callback(f: (RecordMetadata, Throwable) ⇒ Unit): Callback =
+  private def callback(f: (RecordMetadata, Throwable) => Unit): Callback =
     new Callback {
       override def onCompletion(
         metadata: RecordMetadata,
@@ -74,7 +71,7 @@ private[pubsub] case class MockPub[F[_], V](
   A: Applicative[F]
 ) extends Pub[F, V] {
 
-  override def publish(record: Record[V]): F[Done] =
-    A.pure(Done)
+  override def publish(record: Record[V]): F[Unit] =
+    A.pure(())
 
 }

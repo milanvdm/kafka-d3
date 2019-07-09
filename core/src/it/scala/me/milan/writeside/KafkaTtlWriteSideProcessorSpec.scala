@@ -23,66 +23,68 @@ class KafkaTtlWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTe
 
   "KafkaTtlWriteSideProcessor" can {
 
-    implicit val kafkaProducer: KafkaProducer[String, GenericRecord] =
-      new KProducer(applicationConfig.kafka).producer
+      implicit lazy val kafkaProducer: KafkaProducer[String, GenericRecord] = KProducer
+        .apply[IO](applicationConfig.kafka)
+        .unsafeRunSync
+        .producer
 
-    val sub = Sub.kafka[IO, UserState](applicationConfig.kafka, consumerGroupId, to).unsafeRunSync()
+      val sub = Sub.kafka[IO, UserState](applicationConfig.kafka, consumerGroupId, to).unsafeRunSync()
 
-    val writeSideProcessor = WriteSideProcessor
-      .kafkaTimeToLive[IO, UserState, UserEvent](
-        applicationConfig.kafka,
-        applicationConfig.writeSide,
-        UserAggregator,
-        "KafkaTtlWriteSideProcessorSpec",
-        from,
-        to,
-        1.millis
-      )
+      val writeSideProcessor = WriteSideProcessor
+        .kafkaTimeToLive[IO, UserState, UserEvent](
+          applicationConfig.kafka,
+          applicationConfig.writeSide,
+          UserAggregator,
+          "KafkaTtlWriteSideProcessorSpec",
+          from,
+          to,
+          1.millis
+        )
 
-    "handle out-of-order events" should {
+      "handle out-of-order events" should {
 
-      "successfully receive the correct end state" in {
+        "successfully receive the correct end state" in {
 
-        val updatedDelayed3: Record[UserUpdated] =
-          Record(from, userId, UserUpdated(userId, "Milan3"), 3)
-        val updatedDelayed2: Record[UserUpdated] =
-          Record(from, userId, UserUpdated(userId, "Milan2"), 2)
+          val updatedDelayed3: Record[UserUpdated] =
+            Record(from, userId, UserUpdated(userId, "Milan3"), 3)
+          val updatedDelayed2: Record[UserUpdated] =
+            Record(from, userId, UserUpdated(userId, "Milan2"), 2)
 
-        val startup = for {
-          _ ← kafkaAdminClient.createTopics
-          _ ← writeSideProcessor.start
-          result ← sub.start
-            .take(3)
-            .compile
-            .toList
-        } yield result
+          val startup = for {
+            _ <- kafkaAdminClient.createTopics
+            _ <- writeSideProcessor.start
+            result <- sub.start
+              .take(3)
+              .compile
+              .toList
+          } yield result
 
-        val send = for {
-          _ ← IO.sleep(1.seconds)
-          _ ← Pub.kafka[IO, UserCreated].publish(created) // 0
-          _ ← Pub.kafka[IO, UserUpdated].publish(updatedDelayed3) // 3
-          _ ← Pub.kafka[IO, UserUpdated].publish(updatedDelayed2) // 2 -> 1 ms late, still accepted
-          _ ← Pub.kafka[IO, UserUpdated].publish(updated) // 1 -> 2 ms late, so rejected
-          _ ← IO.sleep(5.seconds)
-          _ ← sub.stop
-          _ ← writeSideProcessor.stop
-          _ ← IO.sleep(5.seconds)
-        } yield ()
+          val send = for {
+            _ <- IO.sleep(1.seconds)
+            _ <- Pub.kafka[IO, UserCreated].publish(created) // 0
+            _ <- Pub.kafka[IO, UserUpdated].publish(updatedDelayed3) // 3
+            _ <- Pub.kafka[IO, UserUpdated].publish(updatedDelayed2) // 2 -> 1 ms late, still accepted
+            _ <- Pub.kafka[IO, UserUpdated].publish(updated) // 1 -> 2 ms late, so rejected
+            _ <- IO.sleep(5.seconds)
+            _ <- sub.stop
+            _ <- writeSideProcessor.stop
+            _ <- IO.sleep(5.seconds)
+          } yield ()
 
-        val result = (startup, send)
-          .parMapN { (result, _) ⇒
-            result
-          }
-          .unsafeRunTimed(20.seconds)
-          .getOrElse(List.empty)
-          .lastOption
-          .map(_.value)
+          val result = (startup, send)
+            .parMapN { (result, _) =>
+              result
+            }
+            .unsafeRunTimed(20.seconds)
+            .getOrElse(List.empty)
+            .lastOption
+            .map(_.value)
 
-        result shouldBe Some(User(userId, "Milan2", "updated"))
+          result shouldBe Some(User(userId, "Milan2", "updated"))
 
+        }
       }
     }
-  }
 }
 
 object KafkaTtlWriteSideProcessorSpec {

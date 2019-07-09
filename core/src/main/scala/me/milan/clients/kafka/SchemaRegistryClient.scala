@@ -11,49 +11,51 @@ import cats.syntax.traverse._
 import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient
 
 import me.milan.config.KafkaConfig
-import me.milan.domain.Done
 
 object SchemaRegistryClient {
   case class Schema(value: String) extends AnyVal
+
+  def apply[F[_]: ConcurrentEffect](config: KafkaConfig): F[SchemaRegistryClient[F]] =
+    for {
+      schemaRegistryClient <- ConcurrentEffect[F].delay(
+        new CachedSchemaRegistryClient(
+          config.schemaRegistry.uri.renderString,
+          config.schemaRegistry.identityMapCapacity
+        )
+      )
+    } yield new SchemaRegistryClient[F](schemaRegistryClient)
 }
 
-class SchemaRegistryClient[F[_]](
-  config: KafkaConfig
-)(
-  implicit
-  C: ConcurrentEffect[F]
-) {
+class SchemaRegistryClient[F[_]: ConcurrentEffect](schemaRegistryClient: CachedSchemaRegistryClient) {
   import SchemaRegistryClient._
 
-  private val schemaClient: CachedSchemaRegistryClient = new CachedSchemaRegistryClient(
-    config.schemaRegistry.url.renderString,
-    config.schemaRegistry.identityMapCapacity
+  def getAllSchemas: F[Set[Schema]] = ConcurrentEffect[F].delay(
+    schemaRegistryClient.getAllSubjects.asScala.map(Schema).toSet
   )
 
-  def getAllSchemas: F[Set[Schema]] = C.delay(
-    schemaClient.getAllSubjects.asScala.map(Schema).toSet
-  )
-
-  def deleteAllSchemas: F[Done] =
+  def deleteAllSchemas: F[Unit] =
     for {
-      allSubjects ← C.delay(schemaClient.getAllSubjects.asScala.toList)
-      _ ← allSubjects.traverse { subject ⇒
-        C.delay(schemaClient.getAllVersions(subject).asScala.toList)
-          .map(_.traverse { version ⇒
-            C.delay {
-                schemaClient.deleteSchemaVersion(subject, version.toString)
+      allSubjects <- ConcurrentEffect[F].delay(schemaRegistryClient.getAllSubjects.asScala.toList)
+      _ <- allSubjects.traverse { subject =>
+        ConcurrentEffect[F]
+          .delay(schemaRegistryClient.getAllVersions(subject).asScala.toList)
+          .map(_.traverse { version =>
+            ConcurrentEffect[F]
+              .delay {
+                schemaRegistryClient.deleteSchemaVersion(subject, version.toString)
                 ()
               }
-              .handleError(_ ⇒ ())
+              .handleError(_ => ())
           })
       }
-      _ ← allSubjects.traverse { subject ⇒
-        C.delay {
-            schemaClient.deleteSubject(subject)
+      _ <- allSubjects.traverse { subject =>
+        ConcurrentEffect[F]
+          .delay {
+            schemaRegistryClient.deleteSubject(subject)
             ()
           }
-          .handleError(_ ⇒ ())
+          .handleError(_ => ())
       }
-    } yield Done
+    } yield ()
 
 }

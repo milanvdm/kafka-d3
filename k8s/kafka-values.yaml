@@ -87,25 +87,3 @@ cp-kafka-rest:
   enabled: false
   image: confluentinc/cp-kafka-rest
   imageTag: 5.0.1
-
-## ------------------------------------------------------
-## Kafka Connect
-## ------------------------------------------------------
-cp-kafka-connect:
-  enabled: false
-  image: confluentinc/cp-kafka-connect
-  imageTag: 5.0.1
-
-## ------------------------------------------------------
-## KSQL Server
-## ------------------------------------------------------
-cp-ksql-server:
-  enabled: true
-  image: confluentinc/cp-ksql-server
-  imageTag: 5.0.1
-  ## Optionally specify an array of imagePullSecrets. Secrets must be manually created in the namespace.
-  ## https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod
-  imagePullSecrets:
-  #  - name: "regcred"
-  ksql:
-    headless: false

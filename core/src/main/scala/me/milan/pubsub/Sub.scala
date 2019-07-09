@@ -8,6 +8,7 @@ import scala.concurrent.duration._
 
 import cats.Applicative
 import cats.effect.ConcurrentEffect
+import cats.effect.concurrent.MVar
 import cats.syntax.applicativeError._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
@@ -16,11 +17,11 @@ import fs2.Stream
 import fs2.concurrent.SignallingRef
 import org.apache.avro.generic.GenericRecord
 import org.apache.kafka.clients.consumer.KafkaConsumer
-import org.http4s.Uri.Host
 
 import me.milan.config.KafkaConfig
-import me.milan.domain.{ Done, Key, Record, Topic }
+import me.milan.domain.{ Key, Record, Topic }
 import me.milan.pubsub.kafka.KConsumer
+import me.milan.pubsub.kafka.KConsumer.ConsumerGroupId
 import me.milan.serdes.AvroSerde
 
 object Sub {
@@ -34,14 +35,17 @@ object Sub {
 
   def kafka[F[_], V >: Null: SchemaFor: Decoder: Encoder](
     config: KafkaConfig,
+    consumerGroupId: ConsumerGroupId,
     topic: Topic
   )(
     implicit
     C: ConcurrentEffect[F]
   ): F[Sub[F, V]] =
-    SignallingRef[F, Boolean](false).flatMap { pauseSignal ⇒
-      SignallingRef[F, Boolean](false).map { haltSignal ⇒
-        KafkaSub[F, V](config, topic, pauseSignal, haltSignal)
+    MVar.empty[F, KafkaConsumer[String, GenericRecord]].flatMap { kafkaConsumer =>
+      SignallingRef[F, Boolean](false).flatMap { pauseSignal =>
+        SignallingRef[F, Boolean](false).map { haltSignal =>
+          new KafkaSub[F, V](config, consumerGroupId, topic, kafkaConsumer, pauseSignal, haltSignal)
+        }
       }
     }
 }
@@ -49,17 +53,18 @@ object Sub {
 trait Sub[F[_], V] {
 
   def start: Stream[F, Record[V]]
-  def pause: F[Done]
-  def unPause: F[Done]
-  def hosts: F[Set[Host]]
-  def reset: F[Done]
-  def stop: F[Done]
+  def pause: F[Unit]
+  def resume: F[Unit]
+  def reset: F[Unit]
+  def stop: F[Unit]
 
 }
 
-private[pubsub] case class KafkaSub[F[_], V >: Null: SchemaFor: Decoder: Encoder](
+private[pubsub] class KafkaSub[F[_], V >: Null: SchemaFor: Decoder: Encoder](
   config: KafkaConfig,
+  consumerGroupId: ConsumerGroupId,
   topic: Topic,
+  kafkaConsumer: MVar[F, KafkaConsumer[String, GenericRecord]],
   pauseSignal: SignallingRef[F, Boolean],
   haltSignal: SignallingRef[F, Boolean]
 )(
@@ -67,9 +72,17 @@ private[pubsub] case class KafkaSub[F[_], V >: Null: SchemaFor: Decoder: Encoder
   C: ConcurrentEffect[F]
 ) extends Sub[F, V] {
 
-  private val kafkaConsumer: KafkaConsumer[String, GenericRecord] = new KConsumer(config).consumer
-
   override def start: Stream[F, Record[V]] = {
+
+    val create = Stream
+      .eval(
+        haltSignal.set(false).flatMap { _ =>
+          kafkaConsumer.tryTake.flatMap { _ =>
+            KConsumer(config, consumerGroupId).flatMap(consumer => kafkaConsumer.put(consumer.consumer))
+          }
+        }
+      )
+      .drain
 
     val subscription = Stream
       .eval(subscribe(topic))
@@ -77,29 +90,29 @@ private[pubsub] case class KafkaSub[F[_], V >: Null: SchemaFor: Decoder: Encoder
 
     val shutdown = Stream
       .eval {
-        C.delay {
-            //TODO: Add callback on commit
-            kafkaConsumer.commitAsync()
-            kafkaConsumer.close()
+        kafkaConsumer.read
+          .map { consumer =>
+            consumer.commitAsync()
+            consumer.close()
           }
           .recover {
-            case _: ConcurrentModificationException ⇒ ()
+            case _: ConcurrentModificationException => ()
           }
       }
 
     val poll =
       Stream
         .eval {
-          C.delay {
+          kafkaConsumer.read.map { consumer =>
             val valueAvroSerde = new AvroSerde[V]
 
-            val consumerRecords = kafkaConsumer
+            val consumerRecords = consumer
               .poll(500.millis.toJava)
               .records(topic.value)
               .asScala
               .toList
 
-            consumerRecords.map { record ⇒
+            consumerRecords.map { record =>
               Record(
                 Topic(record.topic),
                 Key(record.key),
@@ -115,32 +128,25 @@ private[pubsub] case class KafkaSub[F[_], V >: Null: SchemaFor: Decoder: Encoder
         .interruptWhen(haltSignal)
         .onFinalize(shutdown.compile.drain)
 
-    subscription ++ poll
+    create ++ subscription ++ poll
   }
 
-  override def pause: F[Done] = pauseSignal.set(true).map(_ ⇒ Done)
+  override def pause: F[Unit] = pauseSignal.set(true).map(_ => ())
 
-  override def unPause: F[Done] = pauseSignal.set(false).map(_ ⇒ Done)
+  override def resume: F[Unit] = pauseSignal.set(false).map(_ => ())
 
-  override def hosts: F[Set[Host]] =
-    ???
+  override def reset: F[Unit] = kafkaConsumer.read.map { consumer =>
+    //val partitions = kafkaConsumer.assignment.asScala.filter(_.topic == topic.value)
+    consumer.seekToBeginning(List.empty.asJava) //(partitions.asJava)
+  }
 
-  override def reset: F[Done] =
-    C.delay {
-      val partitions = kafkaConsumer.assignment().asScala.toList.filter(_.topic == topic.value)
-      kafkaConsumer.seekToBeginning(partitions.asJava)
-      Done
-    }
-
-  //TODO: Check if stopped, it also gets removed from consumer-group or not
-  override def stop: F[Done] = haltSignal.set(true).map(_ ⇒ Done)
+  override def stop: F[Unit] = haltSignal.set(true).map(_ => ())
 
   /**
     * Does only start of being assigned partitions after the first poll
     */
-  private def subscribe(topic: Topic): F[Done] = C.delay {
-    kafkaConsumer.subscribe(List(topic).map(_.value).asJavaCollection)
-    Done
+  private def subscribe(topic: Topic): F[Unit] = kafkaConsumer.read.map { consumer =>
+    consumer.subscribe(List(topic.value).asJavaCollection)
   }
 }
 
@@ -152,10 +158,9 @@ private[pubsub] case class MockSub[F[_], V](
 ) extends Sub[F, V] {
 
   override def start: Stream[F, Record[V]] = stream
-  override def pause: F[Done] = A.pure(Done)
-  override def unPause: F[Done] = A.pure(Done)
-  override def hosts: F[Set[Host]] = A.pure(Set.empty)
-  override def reset: F[Done] = A.pure(Done)
-  override def stop: F[Done] = A.pure(Done)
+  override def pause: F[Unit] = A.pure(())
+  override def resume: F[Unit] = A.pure(())
+  override def reset: F[Unit] = A.pure(())
+  override def stop: F[Unit] = A.pure(())
 
 }

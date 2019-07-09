@@ -21,49 +21,53 @@ class AvroSerdeIntegrationSpec extends WordSpec with Matchers with KafkaTestKit 
 
   "AvroSerde" can {
 
-    "send a backwards compatible record type" should {
+      "send a backwards compatible record type" should {
 
-      "successfully register the backwards compatible schema" in {
+        "successfully register the backwards compatible schema" in {
 
-        implicit val kafkaProducer: KafkaProducer[String, GenericRecord] =
-          new KProducer(applicationConfig.kafka).producer
+          implicit lazy val kafkaProducer: KafkaProducer[String, GenericRecord] = KProducer
+            .apply[IO](applicationConfig.kafka)
+            .unsafeRunSync
+            .producer
 
-        val program = for {
-          _ ← kafkaAdminClient.createTopics
-          _ ← IO.sleep(2.seconds)
-          _ ← Pub.kafka[IO, Value1].publish(record)
-          _ ← Pub.kafka[IO, NewValue1].publish(recordWithBackwardsCompatibility)
-        } yield ()
+          val program = for {
+            _ <- kafkaAdminClient.createTopics
+            _ <- IO.sleep(2.seconds)
+            _ <- Pub.kafka[IO, Value1].publish(record)
+            _ <- Pub.kafka[IO, NewValue1].publish(recordWithBackwardsCompatibility)
+          } yield ()
 
-        program.unsafeRunTimed(10.seconds)
+          program.unsafeRunTimed(10.seconds)
 
+        }
+      }
+
+      "send a non backwards compatible record" should {
+
+        "throw a SerializationException" in {
+
+          implicit lazy val kafkaProducer: KafkaProducer[String, GenericRecord] = KProducer
+            .apply[IO](applicationConfig.kafka)
+            .unsafeRunSync
+            .producer
+
+          val program = for {
+            _ <- kafkaAdminClient.createTopics
+            _ <- IO.sleep(2.seconds)
+            _ <- Pub.kafka[IO, Value1].publish(record)
+            _ <- Pub.kafka[IO, BreakingValue1].publish(recordWithBreakingCompatibility)
+          } yield ()
+
+          val thrown = the[org.apache.kafka.common.errors.SerializationException] thrownBy {
+                program.unsafeRunTimed(10.seconds)
+              }
+
+          thrown.getMessage shouldBe
+            "Error registering Avro schema: {\"type\":\"record\",\"name\":\"Value1\",\"namespace\":\"me.milan.serdes.AvroSerdeIntegrationSpec\",\"fields\":[{\"name\":\"newValue\",\"type\":\"int\"}]}"
+
+        }
       }
     }
-
-    "send a non backwards compatible record" should {
-
-      "throw a SerializationException" in {
-
-        implicit val kafkaProducer: KafkaProducer[String, GenericRecord] =
-          new KProducer(applicationConfig.kafka).producer
-
-        val program = for {
-          _ ← kafkaAdminClient.createTopics
-          _ ← IO.sleep(2.seconds)
-          _ ← Pub.kafka[IO, Value1].publish(record)
-          _ ← Pub.kafka[IO, BreakingValue1].publish(recordWithBreakingCompatibility)
-        } yield ()
-
-        val thrown = the[org.apache.kafka.common.errors.SerializationException] thrownBy {
-            program.unsafeRunTimed(10.seconds)
-          }
-
-        thrown.getMessage shouldBe
-          "Error registering Avro schema: {\"type\":\"record\",\"name\":\"Value1\",\"namespace\":\"me.milan.serdes.AvroSerdeIntegrationSpec\",\"fields\":[{\"name\":\"newValue\",\"type\":\"int\"}]}"
-
-      }
-    }
-  }
 
 }
 

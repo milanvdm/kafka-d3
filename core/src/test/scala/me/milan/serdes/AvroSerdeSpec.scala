@@ -10,55 +10,55 @@ class AvroSerdeSpec extends WordSpec with Matchers {
 
   "AvroSerde" can {
 
-    "encode and decode" should {
+      "encode and decode" should {
 
-      "successfully give back the same object" in {
+        "successfully give back the same object" in {
 
-        val avroSerde = new AvroSerde[Key1]
+          val avroSerde = new AvroSerde[Key1]
 
-        val result = avroSerde.decode(avroSerde.encode(key1))
+          val result = avroSerde.decode(avroSerde.encode(key1))
 
-        result shouldBe key1
+          result shouldBe key1
 
-      }
+        }
 
-      "successfully decode to the right sub type of sealed trait" in {
+        "successfully decode to the right sub type of sealed trait" in {
 
-        val subtypeFormat = RecordFormat[Key1]
+          val subtypeFormat = RecordFormat[Key1]
 
-        val record = subtypeFormat.to(key1)
+          val record = subtypeFormat.to(key1)
 
-        val traitFormat = RecordFormat[Key]
+          val traitFormat = RecordFormat[Key]
 
-        val result = traitFormat.from(record)
+          val result = traitFormat.from(record)
 
-        result shouldBe key1
+          result shouldBe key1
 
-      }
+        }
 
-      "successfully encode a Tombstone type" in {
+        "successfully encode a Tombstone type" in {
 
-        val avroSerde = new AvroSerde[Key3]
+          val avroSerde = new AvroSerde[Key3]
 
-        val result = avroSerde.encode(key3)
+          val result = avroSerde.encode(key3)
 
-        result shouldBe null
+          result shouldBe null
 
-      }
+        }
 
-      "fail on non case classes" in {
+        "fail on non case classes" in {
 
-        val avroSerde = new AvroSerde[String]
+          val avroSerde = new AvroSerde[String]
 
-        val thrown = the[java.lang.RuntimeException] thrownBy {
-            avroSerde.decode(avroSerde.encode(testString))
-          }
+          val thrown = the[java.lang.RuntimeException] thrownBy {
+                avroSerde.decode(avroSerde.encode(testString))
+              }
 
-        thrown.getMessage shouldBe "Cannot marshall an instance of test to a Record (was test)"
+          thrown.getMessage shouldBe "Cannot marshall an instance of test to a Record (was test)"
 
+        }
       }
     }
-  }
 
 }
 

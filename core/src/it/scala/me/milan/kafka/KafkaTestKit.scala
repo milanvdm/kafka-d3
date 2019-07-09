@@ -9,7 +9,7 @@ import me.milan.clients.kafka.{ KafkaAdminClient, SchemaRegistryClient }
 import me.milan.config.ApplicationConfig
 
 trait KafkaTestKit extends BeforeAndAfterEach {
-  this: Suite ⇒
+  this: Suite =>
 
   val applicationConfig: ApplicationConfig
 
@@ -17,14 +17,15 @@ trait KafkaTestKit extends BeforeAndAfterEach {
   implicit val cs = IO.contextShift(executor)
   implicit val timer = IO.timer(executor)
 
-  lazy val kafkaAdminClient = new KafkaAdminClient[IO](applicationConfig.kafka)
-  lazy val schemaRegistryClient = new SchemaRegistryClient[IO](applicationConfig.kafka)
+  lazy val kafkaAdminClient: KafkaAdminClient[IO] = KafkaAdminClient[IO](applicationConfig.kafka).unsafeRunSync
+  lazy val schemaRegistryClient: SchemaRegistryClient[IO] =
+    SchemaRegistryClient[IO](applicationConfig.kafka).unsafeRunSync
 
   override def beforeEach(): Unit = {
     val program = for {
-      _ ← schemaRegistryClient.deleteAllSchemas
-      _ ← kafkaAdminClient.deleteAllTopics
-      _ ← IO.sleep(1.seconds)
+      _ <- schemaRegistryClient.deleteAllSchemas
+      _ <- kafkaAdminClient.deleteAllTopics
+      _ <- IO.sleep(1.seconds)
     } yield ()
 
     program.unsafeRunTimed(2.seconds)

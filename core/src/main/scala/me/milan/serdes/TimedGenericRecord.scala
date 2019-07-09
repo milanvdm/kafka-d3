@@ -24,7 +24,7 @@ object TimedGenericRecord {
       data: TimedGenericRecord
     ): Array[Byte] =
       genericRecordSerializer.serialize(topic, data.record) ++
-        longSerializer.serialize(topic, data.timestamp)
+          longSerializer.serialize(topic, data.timestamp)
 
     override def close(): Unit = {
       genericRecordSerializer.close()

@@ -18,7 +18,7 @@ object KafkaStore {
     storeName: String
   ): StoreBuilder[KeyValueStore[String, GenericRecord]] = {
     val serdeConfig = Map(
-      AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG → schemaRegistryConfig.url.renderString
+      AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG -> schemaRegistryConfig.uri.renderString
     )
 
     val valueGenericAvroSerde = new GenericAvroSerde()
@@ -38,7 +38,7 @@ object KafkaStore {
     storeName: String
   ): StoreBuilder[KeyValueStore[String, TimedGenericRecord]] = {
     val serdeConfig = Map(
-      AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG → schemaRegistryConfig.url.renderString
+      AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG -> schemaRegistryConfig.uri.renderString
     )
 
     val genericAvroSerde = new GenericAvroSerde()

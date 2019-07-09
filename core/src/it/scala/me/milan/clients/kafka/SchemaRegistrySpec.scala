@@ -21,49 +21,51 @@ class SchemaRegistrySpec extends WordSpec with Matchers with KafkaTestKit {
 
   "SchemaRegistryClient" can {
 
-    implicit val kafkaProducer: KafkaProducer[String, GenericRecord] =
-      new KProducer(applicationConfig.kafka).producer
+      implicit lazy val kafkaProducer: KafkaProducer[String, GenericRecord] = KProducer
+        .apply[IO](applicationConfig.kafka)
+        .unsafeRunSync
+        .producer
 
-    "GetAllSchema" should {
+      "GetAllSchema" should {
 
-      "successfully retrieve all schemas" in {
+        "successfully retrieve all schemas" in {
 
-        val schemas = for {
-          _ ← kafkaAdminClient.createTopics
-          _ ← IO.sleep(2.seconds)
-          _ ← Pub.kafka[IO, Value].publish(record)
-          schemas ← schemaRegistryClient.getAllSchemas
-        } yield schemas
+          val schemas = for {
+            _ <- kafkaAdminClient.createTopics
+            _ <- IO.sleep(2.seconds)
+            _ <- Pub.kafka[IO, Value].publish(record)
+            schemas <- schemaRegistryClient.getAllSchemas
+          } yield schemas
 
-        val result = schemas
-          .unsafeRunTimed(15.seconds)
-          .getOrElse(List.empty)
+          val result = schemas
+            .unsafeRunTimed(15.seconds)
+            .getOrElse(List.empty)
 
-        result should have size 1
-        result.head shouldBe schema
+          result should have size 1
+          result.head shouldBe schema
+        }
+      }
+
+      "DeleteAllSchemas" should {
+
+        "successfully delete all schemas" in {
+
+          val schemas = for {
+            _ <- kafkaAdminClient.createTopics
+            _ <- IO.sleep(2.seconds)
+            _ <- Pub.kafka[IO, Value].publish(record)
+            _ <- schemaRegistryClient.deleteAllSchemas
+            schemas <- schemaRegistryClient.getAllSchemas
+          } yield schemas
+
+          val result = schemas
+            .unsafeRunTimed(15.seconds)
+            .getOrElse(List.empty)
+
+          result shouldBe empty
+        }
       }
     }
-
-    "DeleteAllSchemas" should {
-
-      "successfully delete all schemas" in {
-
-        val schemas = for {
-          _ ← kafkaAdminClient.createTopics
-          _ ← IO.sleep(2.seconds)
-          _ ← Pub.kafka[IO, Value].publish(record)
-          _ ← schemaRegistryClient.deleteAllSchemas
-          schemas ← schemaRegistryClient.getAllSchemas
-        } yield schemas
-
-        val result = schemas
-          .unsafeRunTimed(15.seconds)
-          .getOrElse(List.empty)
-
-        result shouldBe empty
-      }
-    }
-  }
 }
 
 object SchemaRegistrySpec {

@@ -48,10 +48,10 @@ private[kafka] class AggregateKafkaProcessor[
         .getStateStore(storeName)
         .asInstanceOf[KeyValueStore[String, GenericRecord]]
     } match {
-      case Success(_) ⇒ ()
-      case Failure(e: ClassCastException) ⇒
+      case Success(_) => ()
+      case Failure(e: ClassCastException) =>
         throw new IllegalArgumentException(s"Please provide a KeyValueStore, reason: $e")
-      case Failure(e) ⇒ throw e
+      case Failure(e) => throw e
     }
   }
 
@@ -95,10 +95,10 @@ private[kafka] class TimeToLiveAggregateKafkaProcessor[
         .getStateStore(storeName)
         .asInstanceOf[KeyValueStore[String, TimedGenericRecord]]
     } match {
-      case Success(_) ⇒ ()
-      case Failure(e: ClassCastException) ⇒
+      case Success(_) => ()
+      case Failure(e: ClassCastException) =>
         throw new IllegalArgumentException(s"Please provide a KeyValueStore, reason: $e")
-      case Failure(e) ⇒ throw e
+      case Failure(e) => throw e
     }
   }
 
@@ -109,10 +109,10 @@ private[kafka] class TimeToLiveAggregateKafkaProcessor[
     val timedGenericRecord = Option(kvStore.get(key))
 
     val timedOut = timedGenericRecord match {
-      case Some(TimedGenericRecord(_, timestamp)) ⇒
+      case Some(TimedGenericRecord(_, timestamp)) =>
         val timeDifference = (timestamp - processorContext.timestamp).millis
         processorContext.timestamp < timestamp && timeToLive < timeDifference
-      case None ⇒ false
+      case None => false
     }
 
     if (timedOut) {

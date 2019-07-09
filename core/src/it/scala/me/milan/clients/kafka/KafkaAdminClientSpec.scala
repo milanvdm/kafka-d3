@@ -19,124 +19,129 @@ class KafkaAdminClientSpec extends WordSpec with Matchers with KafkaTestKit {
 
   "KafkaAdminClient" can {
 
-    "CreateTopics" should {
+      "CreateTopics" should {
 
-      "create topics successfully" in {
+        "create topics successfully" in {
 
-        val program = for {
-          _ ← kafkaAdminClient.createTopics
-          createdTopics ← kafkaAdminClient.getTopics()
-        } yield createdTopics
+          val program = for {
+            _ <- kafkaAdminClient.createTopics
+            _ <- IO.sleep(1.second)
+            createdTopics <- kafkaAdminClient.getTopics()
+          } yield createdTopics
 
-        val result = program.unsafeRunTimed(10.seconds).get
+          val result = program.unsafeRunTimed(10.seconds).get
 
-        result.contains(topic) shouldBe true
-        result should have size 1
+          result.contains(topic) shouldBe true
+          result should have size 1
+
+        }
+
+        "create topics successfully although they already exist" in {
+
+          val program = for {
+            _ <- kafkaAdminClient.createTopics
+            _ <- kafkaAdminClient.createTopics
+            _ <- IO.sleep(1.second)
+            createdTopics <- kafkaAdminClient.getTopics()
+          } yield createdTopics
+
+          val result = program.unsafeRunTimed(10.seconds).get
+
+          result.contains(topic) shouldBe true
+          result should have size 1
+
+        }
 
       }
 
-      "create topics successfully although they already exist" in {
+      "GetTopics" should {
 
-        val program = for {
-          _ ← kafkaAdminClient.createTopics
-          _ ← kafkaAdminClient.createTopics
-          createdTopics ← kafkaAdminClient.getTopics()
-        } yield createdTopics
+        "not include system topics" in {
 
-        val result = program.unsafeRunTimed(10.seconds).get
+          val program = for {
+            _ <- kafkaAdminClient.createTopics
+            _ <- IO.sleep(1.second)
+            createdTopics <- kafkaAdminClient.getTopics()
+          } yield createdTopics
 
-        result.contains(topic) shouldBe true
-        result should have size 1
+          val result = program.unsafeRunTimed(10.seconds).get
+
+          result.contains(topic) shouldBe true
+          result should have size 1
+
+        }
+
+        "include system topics" in {
+
+          val program = for {
+            _ <- kafkaAdminClient.createTopics
+            _ <- IO.sleep(1.second)
+            createdTopics <- kafkaAdminClient.getTopics(ignoreSystemTopics = false)
+          } yield createdTopics
+
+          val result = program.unsafeRunTimed(10.seconds).get
+
+          result.contains(topic) shouldBe true
+          result.size should be > 1
+
+        }
+
+      }
+
+      "DeleteTopics" should {
+
+        "delete topics successfully" in {
+
+          val program = for {
+            _ <- kafkaAdminClient.createTopics
+            _ <- kafkaAdminClient.deleteAllTopics
+            _ <- IO.sleep(1.second)
+            createdTopics <- kafkaAdminClient.getTopics()
+          } yield createdTopics
+
+          val result = program.unsafeRunTimed(10.seconds).get
+
+          result shouldBe empty
+
+        }
+
+      }
+
+      "ConsumerGroupMembers" should {
+
+        "get all members successfully" in {
+
+          val sub1 = Sub.kafka[IO, Value](applicationConfig.kafka, consumerGroupId, topic).unsafeRunSync
+          val sub2 = Sub.kafka[IO, Value](applicationConfig.kafka, consumerGroupId, topic).unsafeRunSync
+
+          val startup = for {
+            _ <- kafkaAdminClient.createTopics
+          } yield ()
+
+          val stream1 = sub1.start.compile.drain
+          val stream2 = sub2.start.compile.drain
+
+          val send = for {
+            _ <- IO.sleep(1.seconds)
+            consumerGroupMembers <- kafkaAdminClient.consumerGroupMembers(consumerGroupId)
+            _ <- sub1.stop
+            _ <- sub2.stop
+          } yield consumerGroupMembers
+
+          val program = (stream1, stream2, startup, send)
+            .parMapN { (_, _, _, result) =>
+              result
+            }
+
+          val result = program.unsafeRunTimed(10.seconds).get
+
+          result should have size 2
+
+        }
 
       }
 
     }
-
-    "GetTopics" should {
-
-      "not include system topics" in {
-
-        val program = for {
-          _ ← kafkaAdminClient.createTopics
-          createdTopics ← kafkaAdminClient.getTopics()
-        } yield createdTopics
-
-        val result = program.unsafeRunTimed(10.seconds).get
-
-        result.contains(topic) shouldBe true
-        result should have size 1
-
-      }
-
-      "include system topics" in {
-
-        val program = for {
-          _ ← kafkaAdminClient.createTopics
-          createdTopics ← kafkaAdminClient.getTopics(ignoreSystemTopics = false)
-        } yield createdTopics
-
-        val result = program.unsafeRunTimed(10.seconds).get
-
-        result.contains(topic) shouldBe true
-        result.size should be > 1
-
-      }
-
-    }
-
-    "DeleteTopics" should {
-
-      "delete topics successfully" in {
-
-        val program = for {
-          _ ← kafkaAdminClient.createTopics
-          _ ← kafkaAdminClient.deleteAllTopics
-          createdTopics ← kafkaAdminClient.getTopics()
-        } yield createdTopics
-
-        val result = program.unsafeRunTimed(10.seconds).get
-
-        result shouldBe empty
-
-      }
-
-    }
-
-    "ConsumerGroupMembers" should {
-
-      "get all members successfully" in {
-
-        val sub1 = Sub.kafka[IO, Value](applicationConfig.kafka, consumerGroupId, topic).unsafeRunSync
-        val sub2 = Sub.kafka[IO, Value](applicationConfig.kafka, consumerGroupId, topic).unsafeRunSync
-
-        val startup = for {
-          _ ← kafkaAdminClient.createTopics
-        } yield ()
-
-        val stream1 = sub1.start.compile.drain
-        val stream2 = sub2.start.compile.drain
-
-        val send = for {
-          _ ← IO.sleep(1.seconds)
-          consumerGroupMembers ← kafkaAdminClient.consumerGroupMembers(consumerGroupId)
-          _ ← sub1.stop
-          _ ← sub2.stop
-        } yield consumerGroupMembers
-
-        val program = (stream1, stream2, startup, send)
-          .parMapN { (_, _, _, result) ⇒
-            result
-          }
-
-        val result = program.unsafeRunTimed(10.seconds).get
-
-        result should have size 2
-
-      }
-
-    }
-
-  }
 
 }
 

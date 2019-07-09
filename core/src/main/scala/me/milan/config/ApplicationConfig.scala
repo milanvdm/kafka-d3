@@ -5,7 +5,6 @@ import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.FiniteDuration
 
 import cats.Show
-import cats.instances.string._
 import org.apache.kafka.streams.Topology.AutoOffsetReset
 import org.http4s.Uri
 
@@ -26,12 +25,12 @@ case class KafkaConfig(
 
 object KafkaConfig {
 
-  case class BootstrapServer(value: String) extends AnyVal
+  case class BootstrapServer(uri: Uri) extends AnyVal
   object BootstrapServer {
-    implicit val bootstrapServerShow: Show[BootstrapServer] = cats.derived.semi.show
+    implicit val bootstrapServerShow: Show[BootstrapServer] = Show.show(_.uri.renderString)
   }
   case class SchemaRegistryConfig(
-    url: Uri,
+    uri: Uri,
     identityMapCapacity: Int = 1000
   )
 
@@ -57,7 +56,7 @@ case class WriteSideConfig(
 )
 
 object WriteSideConfig {
-
   case class UrlPath(value: String) extends AnyVal
 
+  implicit val autoOffsetResetShow: Show[AutoOffsetReset] = Show.show(_.toString.toLowerCase)
 }

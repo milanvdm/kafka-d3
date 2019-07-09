@@ -8,9 +8,9 @@ lazy val commonSettings = Seq(
   organization := "me.milanvdm",
   scalaVersion := "2.12.8",
   resolvers ++= Seq(
-    "Typesafe Releases" at "http://repo.typesafe.com/typesafe/maven-releases/",
-    "confluent.io" at "http://packages.confluent.io/maven/"
-  ),
+        "Typesafe Releases" at "http://repo.typesafe.com/typesafe/maven-releases/",
+        "confluent.io" at "http://packages.confluent.io/maven/"
+      ),
   scalafmtOnCompile := true,
   incOptions := incOptions.value.withLogRecompileOnMacro(false),
   scalacOptions ++= commonScalacOptions,
@@ -18,16 +18,16 @@ lazy val commonSettings = Seq(
   parallelExecution in Test := false,
   testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oDF"),
   libraryDependencies ++= Seq(
-    compilerPlugin(D.kindProjector),
-    compilerPlugin(D.macroParadise)
-  ),
+        compilerPlugin(D.kindProjector),
+        compilerPlugin(D.macroParadise)
+      ),
   scalacOptions in (Compile, doc) := (scalacOptions in (Compile, doc)).value.filter(_ != "-Xfatal-warnings"),
   promptTheme := PromptTheme(
-    List(
-      text("[SBT] ", fg(136)),
-      currentProject(fg(64)).padRight(": ")
-    )
-  )
+        List(
+          text("[SBT] ", fg(136)),
+          currentProject(fg(64)).padRight(": ")
+        )
+      )
 )
 
 lazy val commonScalacOptions = Seq(
@@ -74,21 +74,21 @@ lazy val D = new {
 
   val Versions = new {
     val avro4s = "2.0.4"
-    val cats = "1.6.0"
-    val catsEffect = "1.3.0"
+    val cats = "1.6.1"
+    val catsEffect = "1.3.1"
     val catsPar = "0.2.1"
     val circe = "0.11.1"
-    val fs2 = "1.0.4"
-    val http4s = "0.20.1"
-    val kafka = "2.2.0"
-    val kafkaConfluent = "5.2.1"
+    val fs2 = "1.0.5"
+    val http4s = "0.20.4"
+    val kafka = "2.3.0"
+    val kafkaConfluent = "5.2.2"
     val kittens = "1.2.1"
     val monocle = "1.5.0"
-    val pureConfig = "0.11.0"
+    val pureConfig = "0.11.1"
     val scalaJava8 = "0.9.0"
 
     // Test
-    val scalaTest = "3.0.7"
+    val scalaTest = "3.0.8"
 
     // Compiler
     val kindProjector = "0.9.10"
@@ -146,28 +146,28 @@ lazy val core = Project(
   .settings(Revolver.settings)
   .settings(
     libraryDependencies ++= Seq(
-      D.avro4s,
-      D.avroSerdes,
-      D.cats,
-      D.catsEffect,
-      D.catsPar,
-      D.circe,
-      D.circeGeneric,
-      D.fs2,
-      D.http4sServer,
-      D.http4sCirce,
-      D.http4sClient,
-      D.http4sDsl,
-      D.kafkaClient,
-      D.kafkaStreams,
-      D.kafkaSchemaRegistryClient,
-      D.kittens,
-      D.monocle,
-      D.pureConfig,
-      D.scalaJava8,
-      D.kafkaStreamsTest % "test",
-      D.scalaTest        % "it,test"
-    )
+          D.avro4s,
+          D.avroSerdes,
+          D.cats,
+          D.catsEffect,
+          D.catsPar,
+          D.circe,
+          D.circeGeneric,
+          D.fs2,
+          D.http4sServer,
+          D.http4sCirce,
+          D.http4sClient,
+          D.http4sDsl,
+          D.kafkaClient,
+          D.kafkaStreams,
+          D.kafkaSchemaRegistryClient,
+          D.kittens,
+          D.monocle,
+          D.pureConfig,
+          D.scalaJava8,
+          D.kafkaStreamsTest % "test",
+          D.scalaTest        % "it,test"
+        )
   )
   .configs(IntegrationTest extend Test)
   .settings(Defaults.itSettings)
@@ -178,15 +178,15 @@ lazy val core = Project(
   )
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// Commands
-///////////////////////////////////////////////////////////////////////////////////////////////////
-
-addCommandAlias("update", ";dependencyUpdates")
-addCommandAlias("fcompile", ";scalafmtSbt;compile;it:compile;test:compile")
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
 // Plugins
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 enablePlugins(JavaAppPackaging)
 enablePlugins(DockerPlugin)
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// Commands
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+addCommandAlias("update", ";dependencyUpdates")
+addCommandAlias("fcompile", ";scalafmtSbt;compile;test:compile;it:compile")

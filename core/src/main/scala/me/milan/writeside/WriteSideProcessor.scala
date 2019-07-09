@@ -7,7 +7,6 @@ import scala.compat.java8.DurationConverters._
 import scala.concurrent.duration._
 
 import cats.effect.Sync
-import cats.instances.set._
 import cats.syntax.show._
 import com.sksamuel.avro4s.{ Decoder, Encoder, SchemaFor }
 import io.confluent.kafka.serializers.AbstractKafkaAvroSerDeConfig
@@ -19,9 +18,10 @@ import org.apache.kafka.streams.state.{ QueryableStoreTypes, StreamsMetadata }
 import org.apache.kafka.streams.{ KafkaStreams, StreamsConfig, Topology }
 import org.http4s.Uri
 
-import me.milan.config.{ KafkaConfig, WriteSideConfig }
 import me.milan.config.KafkaConfig.BootstrapServer._
-import me.milan.domain.{ Aggregator, Done, Topic }
+import me.milan.config.WriteSideConfig._
+import me.milan.config.{ KafkaConfig, WriteSideConfig }
+import me.milan.domain.{ Aggregator, Topic }
 import me.milan.serdes.{ AvroSerde, KafkaAvroSerde, StringSerde }
 import me.milan.writeside.kafka.{ KafkaProcessor, KafkaStore }
 
@@ -58,12 +58,12 @@ object WriteSideProcessor {
 
 trait WriteSideProcessor[F[_], A] {
 
-  def start: F[Done]
+  def start: F[Unit]
   def aggregateById(key: String): F[Option[A]]
   def hosts: F[Set[Uri]]
   def partitionHost(key: String): F[Option[Uri]]
-  def clean: F[Done]
-  def stop: F[Done]
+  def clean: F[Unit]
+  def stop: F[Unit]
 
 }
 
@@ -86,11 +86,11 @@ private[writeside] class KafkaWriteSideProcessor[
   private val props: Properties = {
     val p = new Properties()
     p.put(StreamsConfig.APPLICATION_ID_CONFIG, name)
-    p.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaConfig.bootstrapServers.show)
+    p.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaConfig.bootstrapServers.map(_.show).mkString(","))
     p.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, StringSerde)
     p.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, KafkaAvroSerde)
-    p.put(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, kafkaConfig.schemaRegistry.url.renderString)
-    p.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, writeSideConfig.autoOffsetReset)
+    p.put(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, kafkaConfig.schemaRegistry.uri.renderString)
+    p.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, writeSideConfig.autoOffsetReset.show)
     p.put(StreamsConfig.PROCESSING_GUARANTEE_CONFIG, StreamsConfig.AT_LEAST_ONCE)
     p
   }
@@ -101,11 +101,10 @@ private[writeside] class KafkaWriteSideProcessor[
   var stream: KafkaStreams = _
 
   //TODO: Check if state is not running because stream needs to be stopped first
-  override def start: F[Done] = S.delay {
+  override def start: F[Unit] = S.delay {
     shutdownHook()
     stream = create // Stream object needs to be recreated on startup
     stream.start()
-    Done.instance
   }
 
   override def aggregateById(key: String): F[Option[A]] = {
@@ -124,9 +123,9 @@ private[writeside] class KafkaWriteSideProcessor[
   override def hosts: F[Set[Uri]] =
     S.delay(
       stream.allMetadata.asScala
-        .map(metadata ⇒ Uri.fromString(s"${metadata.host}:${metadata.port}"))
+        .map(metadata => Uri.fromString(s"${metadata.host}:${metadata.port}"))
         .collect {
-          case Right(uri) ⇒ uri
+          case Right(uri) => uri
         }
         .toSet
     )
@@ -135,8 +134,8 @@ private[writeside] class KafkaWriteSideProcessor[
     val metadata = stream.metadataForKey(s"store-${from.value}-${to.value}", key, Serdes.String.serializer)
 
     val uri = metadata match {
-      case StreamsMetadata.NOT_AVAILABLE ⇒ None
-      case _                             ⇒ Uri.fromString(s"${metadata.host}:${metadata.port}").toOption
+      case StreamsMetadata.NOT_AVAILABLE => None
+      case _                             => Uri.fromString(s"${metadata.host}:${metadata.port}").toOption
     }
 
     S.delay(
@@ -144,14 +143,13 @@ private[writeside] class KafkaWriteSideProcessor[
     )
   }
 
-  override def clean: F[Done] = S.delay {
+  override def clean: F[Unit] = S.delay {
     stream.cleanUp()
-    Done.instance
   }
 
-  override def stop: F[Done] = S.delay {
+  override def stop: F[Unit] = S.delay {
     stream.close(10.seconds.toJava)
-    Done.instance
+    ()
   }
 
   private def create: KafkaStreams = {
@@ -203,11 +201,11 @@ private[writeside] class KafkaTimeToLiveWriteSideProcessor[
   private val props: Properties = {
     val p = new Properties()
     p.put(StreamsConfig.APPLICATION_ID_CONFIG, name)
-    p.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaConfig.bootstrapServers.show)
+    p.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaConfig.bootstrapServers.map(_.show).mkString(","))
     p.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, StringSerde)
     p.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, KafkaAvroSerde)
-    p.put(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, kafkaConfig.schemaRegistry.url.renderString)
-    p.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, writeSideConfig.autoOffsetReset)
+    p.put(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, kafkaConfig.schemaRegistry.uri.renderString)
+    p.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, writeSideConfig.autoOffsetReset.show)
     p.put(StreamsConfig.PROCESSING_GUARANTEE_CONFIG, StreamsConfig.AT_LEAST_ONCE)
     p
   }
@@ -218,11 +216,10 @@ private[writeside] class KafkaTimeToLiveWriteSideProcessor[
   var stream: KafkaStreams = _
 
   //TODO: Check if state is not running because stream needs to be stopped first
-  override def start: F[Done] = S.delay {
+  override def start: F[Unit] = S.delay {
     shutdownHook()
     stream = create
     stream.start()
-    Done.instance
   }
 
   override def aggregateById(key: String): F[Option[A]] = {
@@ -241,9 +238,9 @@ private[writeside] class KafkaTimeToLiveWriteSideProcessor[
   override def hosts: F[Set[Uri]] =
     S.delay(
       stream.allMetadata.asScala
-        .map(metadata ⇒ Uri.fromString(s"${metadata.host}:${metadata.port}"))
+        .map(metadata => Uri.fromString(s"${metadata.host}:${metadata.port}"))
         .collect {
-          case Right(uri) ⇒ uri
+          case Right(uri) => uri
         }
         .toSet
     )
@@ -252,8 +249,8 @@ private[writeside] class KafkaTimeToLiveWriteSideProcessor[
     val metadata = stream.metadataForKey(s"store-${from.value}-${to.value}", key, Serdes.String.serializer)
 
     val uri = metadata match {
-      case StreamsMetadata.NOT_AVAILABLE ⇒ None
-      case _                             ⇒ Uri.fromString(s"${metadata.host}:${metadata.port}").toOption
+      case StreamsMetadata.NOT_AVAILABLE => None
+      case _                             => Uri.fromString(s"${metadata.host}:${metadata.port}").toOption
     }
 
     S.delay(
@@ -261,14 +258,13 @@ private[writeside] class KafkaTimeToLiveWriteSideProcessor[
     )
   }
 
-  override def clean: F[Done] = S.delay {
+  override def clean: F[Unit] = S.delay {
     stream.cleanUp()
-    Done.instance
   }
 
-  override def stop: F[Done] = S.delay {
+  override def stop: F[Unit] = S.delay {
     stream.close(10.seconds.toJava)
-    Done.instance
+    ()
   }
 
   private def create: KafkaStreams = {
