@@ -8,16 +8,12 @@ import org.apache.kafka.clients.producer.KafkaProducer
 import org.scalatest.{ Matchers, WordSpec }
 
 import me.milan.clients.kafka.SchemaRegistryClient.Schema
-import me.milan.config.{ ApplicationConfig, TestConfig }
-import me.milan.domain.{ Key, Record, Topic }
-import me.milan.kafka.KafkaTestKit
+import me.milan.kafka.{ Fixtures, KafkaTestKit }
 import me.milan.pubsub.Pub
 import me.milan.pubsub.kafka.KProducer
 
 class SchemaRegistrySpec extends WordSpec with Matchers with KafkaTestKit {
-  import SchemaRegistrySpec._
-
-  override val applicationConfig: ApplicationConfig = TestConfig.create(topic)
+  import Fixtures._
 
   "SchemaRegistryClient" can {
 
@@ -30,10 +26,12 @@ class SchemaRegistrySpec extends WordSpec with Matchers with KafkaTestKit {
 
         "successfully retrieve all schemas" in {
 
+          val schema = Schema(s"${fixtures.topic.value}-me.milan.kafka.Fixtures.Value1")
+
           val schemas = for {
             _ <- kafkaAdminClient.createTopics
             _ <- IO.sleep(2.seconds)
-            _ <- Pub.kafka[IO, Value].publish(record)
+            _ <- Pub.kafka[IO, Value1].publish(fixtures.record1)
             schemas <- schemaRegistryClient.getAllSchemas
           } yield schemas
 
@@ -53,7 +51,7 @@ class SchemaRegistrySpec extends WordSpec with Matchers with KafkaTestKit {
           val schemas = for {
             _ <- kafkaAdminClient.createTopics
             _ <- IO.sleep(2.seconds)
-            _ <- Pub.kafka[IO, Value].publish(record)
+            _ <- Pub.kafka[IO, Value1].publish(fixtures.record1)
             _ <- schemaRegistryClient.deleteAllSchemas
             schemas <- schemaRegistryClient.getAllSchemas
           } yield schemas
@@ -66,18 +64,4 @@ class SchemaRegistrySpec extends WordSpec with Matchers with KafkaTestKit {
         }
       }
     }
-}
-
-object SchemaRegistrySpec {
-
-  val topic = Topic("test")
-
-  case class Value(value: String)
-  val schema = Schema("test-me.milan.clients.kafka.SchemaRegistrySpec.Value")
-
-  val key = Key("key1")
-  val value = Value("value1")
-
-  val record: Record[Value] = Record(topic, key, value, 0L)
-
 }

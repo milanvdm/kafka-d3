@@ -79,7 +79,7 @@ lazy val D = new {
     val catsPar = "0.2.1"
     val circe = "0.11.1"
     val fs2 = "1.0.5"
-    val http4s = "0.20.4"
+    val http4s = "0.20.6"
     val kafka = "2.3.0"
     val kafkaConfluent = "5.2.2"
     val kittens = "1.2.1"
@@ -116,8 +116,7 @@ lazy val D = new {
   val scalaJava8 = "org.scala-lang.modules"      %% "scala-java8-compat"          % Versions.scalaJava8
 
   // Test
-  val kafkaStreamsTest = "org.apache.kafka" % "kafka-streams-test-utils" % Versions.kafka
-  val scalaTest = "org.scalatest"           %% "scalatest"               % Versions.scalaTest
+  val scalaTest = "org.scalatest" %% "scalatest" % Versions.scalaTest
 
   // Compiler
   val kindProjector = "org.spire-math"  %% "kind-projector" % Versions.kindProjector
@@ -165,8 +164,7 @@ lazy val core = Project(
           D.monocle,
           D.pureConfig,
           D.scalaJava8,
-          D.kafkaStreamsTest % "test",
-          D.scalaTest        % "it,test"
+          D.scalaTest % "it,test"
         )
   )
   .configs(IntegrationTest extend Test)

@@ -8,18 +8,13 @@ import org.apache.avro.generic.GenericRecord
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.scalatest.{ Matchers, WordSpec }
 
-import me.milan.config.{ ApplicationConfig, TestConfig }
 import me.milan.domain._
 import me.milan.kafka.KafkaTestKit
-import me.milan.pubsub.kafka.KConsumer.ConsumerGroupId
 import me.milan.pubsub.kafka.KProducer
 import me.milan.pubsub.{ Pub, Sub }
 
 class KafkaWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTestKit {
-  import KafkaWriteSideProcessorSpec._
   import events.UserEvents._
-
-  override val applicationConfig: ApplicationConfig = TestConfig.create(from, to)
 
   "KafkaWriteSideProcessor" can {
 
@@ -28,22 +23,25 @@ class KafkaWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTestK
         .unsafeRunSync
         .producer
 
-      val writeSideProcessor = WriteSideProcessor
-        .kafka[IO, UserState, UserEvent](
-          applicationConfig.kafka,
-          applicationConfig.writeSide,
-          UserAggregator,
-          "KafkaWriteSideProcessorSpec",
-          from,
-          to
-        )
-
       "handle create and update events" should {
 
         "successfully receive the correct end state" in {
 
+          val writeSideProcessor = WriteSideProcessor
+            .kafka[IO, UserState, UserEvent](
+              applicationConfig.kafka,
+              applicationConfig.writeSide,
+              UserAggregator,
+              "KafkaWriteSideProcessorSpec",
+              fixtures.from,
+              fixtures.to
+            )
+
+          val created: Record[UserCreated] = Record(fixtures.from, userId, UserCreated(userId, "Milan"), 0)
+          val updated: Record[UserUpdated] = Record(fixtures.from, userId, UserUpdated(userId, "Milan1"), 1)
+
           val program = Sub
-            .kafka[IO, UserState](applicationConfig.kafka, consumerGroupId, to)
+            .kafka[IO, UserState](applicationConfig.kafka, fixtures.consumerGroupId, fixtures.to)
             .flatMap { sub =>
               val startup = for {
                 _ <- kafkaAdminClient.createTopics
@@ -85,8 +83,22 @@ class KafkaWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTestK
 
         "successfully receive the correct end state" in {
 
+          val writeSideProcessor = WriteSideProcessor
+            .kafka[IO, UserState, UserEvent](
+              applicationConfig.kafka,
+              applicationConfig.writeSide,
+              UserAggregator,
+              "KafkaWriteSideProcessorSpec",
+              fixtures.from,
+              fixtures.to
+            )
+
+          val created: Record[UserCreated] = Record(fixtures.from, userId, UserCreated(userId, "Milan"), 0)
+          val updated: Record[UserUpdated] = Record(fixtures.from, userId, UserUpdated(userId, "Milan1"), 1)
+          val removed: Record[UserRemoved] = Record(fixtures.from, userId, UserRemoved(userId), 2)
+
           val program = Sub
-            .kafka[IO, UserState](applicationConfig.kafka, consumerGroupId, to)
+            .kafka[IO, UserState](applicationConfig.kafka, fixtures.consumerGroupId, fixtures.to)
             .flatMap { sub =>
               val startup = for {
                 _ <- kafkaAdminClient.createTopics
@@ -129,8 +141,24 @@ class KafkaWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTestK
 
         "successfully receive the correct end state" in {
 
+          val writeSideProcessor = WriteSideProcessor
+            .kafka[IO, UserState, UserEvent](
+              applicationConfig.kafka,
+              applicationConfig.writeSide,
+              UserAggregator,
+              "KafkaWriteSideProcessorSpec",
+              fixtures.from,
+              fixtures.to
+            )
+
+          val created: Record[UserCreated] = Record(fixtures.from, userId, UserCreated(userId, "Milan"), 0)
+          val updated: Record[UserUpdated] = Record(fixtures.from, userId, UserUpdated(userId, "Milan1"), 1)
+
+          val created2: Record[UserCreated] = Record(fixtures.from, userId2, UserCreated(userId2, "Milan2"), 0)
+          val updated2: Record[UserUpdated] = Record(fixtures.from, userId2, UserUpdated(userId2, "Milan3"), 1)
+
           val program = Sub
-            .kafka[IO, UserState](applicationConfig.kafka, consumerGroupId, to)
+            .kafka[IO, UserState](applicationConfig.kafka, fixtures.consumerGroupId, fixtures.to)
             .flatMap { sub =>
               val startup = for {
                 _ <- kafkaAdminClient.createTopics
@@ -178,8 +206,21 @@ class KafkaWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTestK
 
         "successfully receive the correct end state" in {
 
+          val writeSideProcessor = WriteSideProcessor
+            .kafka[IO, UserState, UserEvent](
+              applicationConfig.kafka,
+              applicationConfig.writeSide,
+              UserAggregator,
+              "KafkaWriteSideProcessorSpec",
+              fixtures.from,
+              fixtures.to
+            )
+
+          val created: Record[UserCreated] = Record(fixtures.from, userId, UserCreated(userId, "Milan"), 0)
+          val updated: Record[UserUpdated] = Record(fixtures.from, userId, UserUpdated(userId, "Milan1"), 1)
+
           val program = Sub
-            .kafka[IO, UserState](applicationConfig.kafka, consumerGroupId, to)
+            .kafka[IO, UserState](applicationConfig.kafka, fixtures.consumerGroupId, fixtures.to)
             .flatMap { sub =>
               val startup = for {
                 _ <- kafkaAdminClient.createTopics
@@ -221,20 +262,4 @@ class KafkaWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTestK
         }
       }
     }
-}
-
-object KafkaWriteSideProcessorSpec {
-  import events.UserEvents._
-
-  val consumerGroupId = ConsumerGroupId("test")
-  val from = Topic("from")
-  val to = Topic("to")
-
-  val created: Record[UserCreated] = Record(from, userId, UserCreated(userId, "Milan"), 0)
-  val updated: Record[UserUpdated] = Record(from, userId, UserUpdated(userId, "Milan1"), 1)
-  val removed: Record[UserRemoved] = Record(from, userId, UserRemoved(userId), 2)
-
-  val created2: Record[UserCreated] = Record(from, userId2, UserCreated(userId2, "Milan2"), 0)
-  val updated2: Record[UserUpdated] = Record(from, userId2, UserUpdated(userId2, "Milan3"), 1)
-
 }

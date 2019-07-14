@@ -6,16 +6,11 @@ import cats.effect.IO
 import cats.syntax.parallel._
 import org.scalatest.{ Matchers, WordSpec }
 
-import me.milan.config.{ ApplicationConfig, TestConfig }
-import me.milan.domain.Topic
-import me.milan.kafka.KafkaTestKit
+import me.milan.kafka.{ Fixtures, KafkaTestKit }
 import me.milan.pubsub.Sub
-import me.milan.pubsub.kafka.KConsumer.ConsumerGroupId
 
 class KafkaAdminClientSpec extends WordSpec with Matchers with KafkaTestKit {
-  import KafkaAdminClientSpec._
-
-  override val applicationConfig: ApplicationConfig = TestConfig.create(topic, systemTopic)
+  import Fixtures._
 
   "KafkaAdminClient" can {
 
@@ -31,8 +26,8 @@ class KafkaAdminClientSpec extends WordSpec with Matchers with KafkaTestKit {
 
           val result = program.unsafeRunTimed(10.seconds).get
 
-          result.contains(topic) shouldBe true
-          result should have size 1
+          result shouldBe Set(fixtures.topic, fixtures.from, fixtures.to)
+          result should have size 3
 
         }
 
@@ -47,8 +42,8 @@ class KafkaAdminClientSpec extends WordSpec with Matchers with KafkaTestKit {
 
           val result = program.unsafeRunTimed(10.seconds).get
 
-          result.contains(topic) shouldBe true
-          result should have size 1
+          result shouldBe Set(fixtures.topic, fixtures.from, fixtures.to)
+          result should have size 3
 
         }
 
@@ -66,8 +61,8 @@ class KafkaAdminClientSpec extends WordSpec with Matchers with KafkaTestKit {
 
           val result = program.unsafeRunTimed(10.seconds).get
 
-          result.contains(topic) shouldBe true
-          result should have size 1
+          result shouldBe Set(fixtures.topic, fixtures.from, fixtures.to)
+          result should have size 3
 
         }
 
@@ -81,8 +76,7 @@ class KafkaAdminClientSpec extends WordSpec with Matchers with KafkaTestKit {
 
           val result = program.unsafeRunTimed(10.seconds).get
 
-          result.contains(topic) shouldBe true
-          result.size should be > 1
+          result should contain allElementsOf Set(fixtures.topic, fixtures.systemTopic)
 
         }
 
@@ -111,8 +105,10 @@ class KafkaAdminClientSpec extends WordSpec with Matchers with KafkaTestKit {
 
         "get all members successfully" in {
 
-          val sub1 = Sub.kafka[IO, Value](applicationConfig.kafka, consumerGroupId, topic).unsafeRunSync
-          val sub2 = Sub.kafka[IO, Value](applicationConfig.kafka, consumerGroupId, topic).unsafeRunSync
+          val sub1 =
+            Sub.kafka[IO, Value](applicationConfig.kafka, fixtures.consumerGroupId, fixtures.topic).unsafeRunSync
+          val sub2 =
+            Sub.kafka[IO, Value](applicationConfig.kafka, fixtures.consumerGroupId, fixtures.topic).unsafeRunSync
 
           val startup = for {
             _ <- kafkaAdminClient.createTopics
@@ -123,7 +119,7 @@ class KafkaAdminClientSpec extends WordSpec with Matchers with KafkaTestKit {
 
           val send = for {
             _ <- IO.sleep(1.seconds)
-            consumerGroupMembers <- kafkaAdminClient.consumerGroupMembers(consumerGroupId)
+            consumerGroupMembers <- kafkaAdminClient.consumerGroupMembers(fixtures.consumerGroupId)
             _ <- sub1.stop
             _ <- sub2.stop
           } yield consumerGroupMembers
@@ -142,17 +138,5 @@ class KafkaAdminClientSpec extends WordSpec with Matchers with KafkaTestKit {
       }
 
     }
-
-}
-
-object KafkaAdminClientSpec {
-
-  val consumerGroupId = ConsumerGroupId("test")
-  val topic = Topic("test")
-  val systemTopic = Topic("_system")
-
-  sealed trait Value
-  case class Value1(value: String) extends Value
-  case class Value2(value2: String) extends Value
 
 }

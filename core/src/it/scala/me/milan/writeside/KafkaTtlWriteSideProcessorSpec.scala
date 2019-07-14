@@ -8,18 +8,13 @@ import org.apache.avro.generic.GenericRecord
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.scalatest.{ Matchers, WordSpec }
 
-import me.milan.config.{ ApplicationConfig, TestConfig }
 import me.milan.domain._
 import me.milan.kafka.KafkaTestKit
-import me.milan.pubsub.kafka.KConsumer.ConsumerGroupId
 import me.milan.pubsub.kafka.KProducer
 import me.milan.pubsub.{ Pub, Sub }
 
 class KafkaTtlWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTestKit {
-  import KafkaTtlWriteSideProcessorSpec._
   import events.UserEvents._
-
-  override val applicationConfig: ApplicationConfig = TestConfig.create(from, to)
 
   "KafkaTtlWriteSideProcessor" can {
 
@@ -28,27 +23,31 @@ class KafkaTtlWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTe
         .unsafeRunSync
         .producer
 
-      val sub = Sub.kafka[IO, UserState](applicationConfig.kafka, consumerGroupId, to).unsafeRunSync()
-
-      val writeSideProcessor = WriteSideProcessor
-        .kafkaTimeToLive[IO, UserState, UserEvent](
-          applicationConfig.kafka,
-          applicationConfig.writeSide,
-          UserAggregator,
-          "KafkaTtlWriteSideProcessorSpec",
-          from,
-          to,
-          1.millis
-        )
-
       "handle out-of-order events" should {
 
         "successfully receive the correct end state" in {
 
+          val sub =
+            Sub.kafka[IO, UserState](applicationConfig.kafka, fixtures.consumerGroupId, fixtures.to).unsafeRunSync()
+
+          val writeSideProcessor = WriteSideProcessor
+            .kafkaTimeToLive[IO, UserState, UserEvent](
+              applicationConfig.kafka,
+              applicationConfig.writeSide,
+              UserAggregator,
+              "KafkaTtlWriteSideProcessorSpec",
+              fixtures.from,
+              fixtures.to,
+              1.millis
+            )
+
+          val created: Record[UserCreated] = Record(fixtures.from, userId, UserCreated(userId, "Milan"), 0)
+          val updated: Record[UserUpdated] = Record(fixtures.from, userId, UserUpdated(userId, "Milan1"), 1)
+
           val updatedDelayed3: Record[UserUpdated] =
-            Record(from, userId, UserUpdated(userId, "Milan3"), 3)
+            Record(fixtures.from, userId, UserUpdated(userId, "Milan3"), 3)
           val updatedDelayed2: Record[UserUpdated] =
-            Record(from, userId, UserUpdated(userId, "Milan2"), 2)
+            Record(fixtures.from, userId, UserUpdated(userId, "Milan2"), 2)
 
           val startup = for {
             _ <- kafkaAdminClient.createTopics
@@ -85,20 +84,4 @@ class KafkaTtlWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTe
         }
       }
     }
-}
-
-object KafkaTtlWriteSideProcessorSpec {
-  import events.UserEvents._
-
-  val consumerGroupId = ConsumerGroupId("test")
-  val from = Topic("from")
-  val to = Topic("to")
-
-  val created: Record[UserCreated] = Record(from, userId, UserCreated(userId, "Milan"), 0)
-  val updated: Record[UserUpdated] = Record(from, userId, UserUpdated(userId, "Milan1"), 1)
-  val removed: Record[UserRemoved] = Record(from, userId, UserRemoved(userId), 2)
-
-  val created2: Record[UserCreated] = Record(from, userId2, UserCreated(userId2, "Milan2"), 0)
-  val updated2: Record[UserUpdated] = Record(from, userId2, UserUpdated(userId2, "Milan3"), 1)
-
 }

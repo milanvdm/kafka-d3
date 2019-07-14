@@ -72,6 +72,7 @@ private[pubsub] class KafkaSub[F[_], V >: Null: SchemaFor: Decoder: Encoder](
   C: ConcurrentEffect[F]
 ) extends Sub[F, V] {
 
+  //TODO: Check if stream is stopped (and initialized) before starting
   override def start: Stream[F, Record[V]] = {
 
     val create = Stream
@@ -135,6 +136,7 @@ private[pubsub] class KafkaSub[F[_], V >: Null: SchemaFor: Decoder: Encoder](
 
   override def resume: F[Unit] = pauseSignal.set(false).map(_ => ())
 
+  //TODO: add logic with adminClient
   override def reset: F[Unit] = kafkaConsumer.read.map { consumer =>
     //val partitions = kafkaConsumer.assignment.asScala.filter(_.topic == topic.value)
     consumer.seekToBeginning(List.empty.asJava) //(partitions.asJava)

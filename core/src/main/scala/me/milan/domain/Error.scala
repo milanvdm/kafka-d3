@@ -9,5 +9,6 @@ object Error {
   final case class IncorrectConfig(underlying: ConfigReaderFailures) extends Error
   final case object KeyNotFound extends Error
   final case class TopicExists(underlying: Throwable) extends Error
+  final case object TopicNotFound extends Error
   final case class System(underlying: Throwable) extends Error
 }

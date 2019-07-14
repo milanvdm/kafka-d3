@@ -8,16 +8,11 @@ import org.apache.avro.generic.GenericRecord
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.scalatest.{ Matchers, WordSpec }
 
-import me.milan.config.{ ApplicationConfig, TestConfig }
-import me.milan.domain.{ Key, Record, Topic }
-import me.milan.kafka.KafkaTestKit
-import me.milan.pubsub.kafka.KConsumer.ConsumerGroupId
+import me.milan.kafka.{ Fixtures, KafkaTestKit }
 import me.milan.pubsub.kafka.KProducer
 
 class PubSubSpec extends WordSpec with Matchers with KafkaTestKit {
-  import PubSubSpec._
-
-  override val applicationConfig: ApplicationConfig = TestConfig.create(topic)
+  import Fixtures._
 
   "PubSub" can {
 
@@ -31,7 +26,7 @@ class PubSubSpec extends WordSpec with Matchers with KafkaTestKit {
         "successfully receive the same record" in {
 
           val program = Sub
-            .kafka[IO, Value](applicationConfig.kafka, consumerGroupId, topic)
+            .kafka[IO, Value](applicationConfig.kafka, fixtures.consumerGroupId, fixtures.topic)
             .flatMap { sub =>
               val startup = for {
                 _ <- kafkaAdminClient.createTopics
@@ -43,7 +38,7 @@ class PubSubSpec extends WordSpec with Matchers with KafkaTestKit {
 
               val send = for {
                 _ <- IO.sleep(5.seconds)
-                _ <- Pub.kafka[IO, Value1].publish(record1)
+                _ <- Pub.kafka[IO, Value1].publish(fixtures.record1)
                 _ <- IO.sleep(1.seconds)
                 _ <- sub.stop
               } yield ()
@@ -59,7 +54,7 @@ class PubSubSpec extends WordSpec with Matchers with KafkaTestKit {
             .getOrElse(List.empty)
             .headOption
 
-          result shouldBe Option(record1)
+          result shouldBe Option(fixtures.record1)
         }
       }
 
@@ -68,7 +63,7 @@ class PubSubSpec extends WordSpec with Matchers with KafkaTestKit {
         "successfully receive the same record" in {
 
           val program = Sub
-            .kafka[IO, Value](applicationConfig.kafka, consumerGroupId, topic)
+            .kafka[IO, Value](applicationConfig.kafka, fixtures.consumerGroupId, fixtures.topic)
             .flatMap { sub =>
               val startup = for {
                 _ <- kafkaAdminClient.createTopics
@@ -80,11 +75,11 @@ class PubSubSpec extends WordSpec with Matchers with KafkaTestKit {
 
               val send = for {
                 _ <- IO.sleep(5.seconds)
-                _ <- Pub.kafka[IO, Value1].publish(record1)
-                _ <- Pub.kafka[IO, Value1].publish(record1)
-                _ <- Pub.kafka[IO, Value2].publish(record2)
-                _ <- Pub.kafka[IO, Value2].publish(record2)
-                _ <- IO.sleep(1.seconds)
+                _ <- Pub.kafka[IO, Value1].publish(fixtures.record1)
+                _ <- Pub.kafka[IO, Value1].publish(fixtures.record1)
+                _ <- Pub.kafka[IO, Value2].publish(fixtures.record2)
+                _ <- Pub.kafka[IO, Value2].publish(fixtures.record2)
+                _ <- IO.sleep(2.seconds)
                 _ <- sub.stop
               } yield ()
 
@@ -99,10 +94,10 @@ class PubSubSpec extends WordSpec with Matchers with KafkaTestKit {
             .getOrElse(List.empty)
 
           result should contain theSameElementsAs List(
-            Record(topic, key1, value1, 0L),
-            Record(topic, key1, value1, 0L),
-            Record(topic, key2, value2, 0L),
-            Record(topic, key2, value2, 0L)
+            fixtures.record1,
+            fixtures.record1,
+            fixtures.record2,
+            fixtures.record2
           )
 
         }
@@ -113,7 +108,7 @@ class PubSubSpec extends WordSpec with Matchers with KafkaTestKit {
         "successfully differentiate between 2 schemas" in {
 
           val program = Sub
-            .kafka[IO, Value](applicationConfig.kafka, consumerGroupId, topic)
+            .kafka[IO, Value](applicationConfig.kafka, fixtures.consumerGroupId, fixtures.topic)
             .flatMap { sub =>
               val startup = for {
                 _ <- kafkaAdminClient.createTopics
@@ -125,8 +120,8 @@ class PubSubSpec extends WordSpec with Matchers with KafkaTestKit {
 
               val send = for {
                 _ <- IO.sleep(5.seconds)
-                _ <- Pub.kafka[IO, Value1].publish(record1)
-                _ <- Pub.kafka[IO, Value2].publish(record2)
+                _ <- Pub.kafka[IO, Value1].publish(fixtures.record1)
+                _ <- Pub.kafka[IO, Value2].publish(fixtures.record2)
                 _ <- IO.sleep(1.seconds)
                 _ <- sub.stop
               } yield ()
@@ -137,39 +132,24 @@ class PubSubSpec extends WordSpec with Matchers with KafkaTestKit {
                 }
             }
 
-          program
+          val result = program
             .unsafeRunTimed(15.seconds)
             .getOrElse(List.empty)
+
+          result
             .map(record => (record.key, record.value))
             .foreach {
               case (_, value: Value1) =>
-                value shouldBe value1
+                value shouldBe fixtures.value1
               case (_, value: Value2) =>
-                value shouldBe value2
+                value shouldBe fixtures.value2
               case _ =>
                 fail("pattern match failed on subtypes")
             }
+
+          result should have size 2
         }
       }
     }
-
-}
-
-object PubSubSpec {
-
-  val consumerGroupId = ConsumerGroupId("test")
-  val topic = Topic("test")
-
-  sealed trait Value
-  case class Value1(value: String) extends Value
-  case class Value2(value2: String) extends Value
-
-  val key1 = Key("key1")
-  val key2 = Key("key2")
-  val value1 = Value1("value1")
-  val value2 = Value2("value2")
-
-  val record1: Record[Value1] = Record(topic, key1, value1, 0L)
-  val record2: Record[Value2] = Record(topic, key2, value2, 0L)
 
 }

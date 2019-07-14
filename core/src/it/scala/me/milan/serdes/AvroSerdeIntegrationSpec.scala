@@ -8,8 +8,7 @@ import org.apache.avro.generic.GenericRecord
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.scalatest.{ Matchers, WordSpec }
 
-import me.milan.config.{ ApplicationConfig, TestConfig }
-import me.milan.domain.{ Key, Record, Topic }
+import me.milan.domain.{ Key, Record }
 import me.milan.kafka.KafkaTestKit
 import me.milan.pubsub.Pub
 import me.milan.pubsub.kafka.KProducer
@@ -17,13 +16,14 @@ import me.milan.pubsub.kafka.KProducer
 class AvroSerdeIntegrationSpec extends WordSpec with Matchers with KafkaTestKit {
   import AvroSerdeIntegrationSpec._
 
-  override val applicationConfig: ApplicationConfig = TestConfig.create(topic)
-
   "AvroSerde" can {
 
       "send a backwards compatible record type" should {
 
         "successfully register the backwards compatible schema" in {
+
+          val record: Record[Value1] = Record(fixtures.topic, key1, value1, 0L)
+          val recordWithBackwardsCompatibility: Record[NewValue1] = Record(fixtures.topic, key1, newValue, 0L)
 
           implicit lazy val kafkaProducer: KafkaProducer[String, GenericRecord] = KProducer
             .apply[IO](applicationConfig.kafka)
@@ -45,6 +45,10 @@ class AvroSerdeIntegrationSpec extends WordSpec with Matchers with KafkaTestKit 
       "send a non backwards compatible record" should {
 
         "throw a SerializationException" in {
+
+          val record: Record[Value1] = Record(fixtures.topic, key1, value1, 0L)
+          val recordWithBreakingCompatibility: Record[BreakingValue1] =
+            Record(fixtures.topic, fixtures.key1, breakingValue, 0L)
 
           implicit lazy val kafkaProducer: KafkaProducer[String, GenericRecord] = KProducer
             .apply[IO](applicationConfig.kafka)
@@ -73,8 +77,6 @@ class AvroSerdeIntegrationSpec extends WordSpec with Matchers with KafkaTestKit 
 
 object AvroSerdeIntegrationSpec {
 
-  val topic = Topic("test")
-
   trait Value
   case class Value1(value: String) extends Value
   @AvroName("Value1")
@@ -85,13 +87,9 @@ object AvroSerdeIntegrationSpec {
   @AvroName("Value1")
   case class BreakingValue1(newValue: Int) extends Value
 
-  val key = Key("key1")
-  val value = Value1("value1")
+  val key1 = Key("key1")
+  val value1 = Value1("value1")
   val newValue = NewValue1("value1", Some("test"))
   val breakingValue = BreakingValue1(1)
-
-  val record: Record[Value1] = Record(topic, key, value, 0L)
-  val recordWithBackwardsCompatibility: Record[NewValue1] = Record(topic, key, newValue, 0L)
-  val recordWithBreakingCompatibility: Record[BreakingValue1] = Record(topic, key, breakingValue, 0L)
 
 }

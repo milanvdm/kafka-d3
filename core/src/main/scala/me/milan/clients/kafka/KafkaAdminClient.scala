@@ -10,6 +10,7 @@ import scala.concurrent.duration._
 import cats.effect.{ ConcurrentEffect, Sync }
 import cats.instances.long._
 import cats.syntax.applicativeError._
+import cats.syntax.monadError._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
 import cats.syntax.show._
@@ -20,6 +21,8 @@ import org.apache.kafka.clients.consumer.{ KafkaConsumer, OffsetAndMetadata }
 import org.apache.kafka.common.errors.UnknownTopicOrPartitionException
 import org.apache.kafka.common.{ ConsumerGroupState, TopicPartition }
 import org.http4s.Uri
+import cats.syntax.traverse._
+import cats.instances.list._
 
 import me.milan.config.KafkaConfig
 import me.milan.config.KafkaConfig.BootstrapServer._
@@ -27,6 +30,7 @@ import me.milan.config.KafkaConfig.TopicConfig
 import me.milan.domain.Topic
 import me.milan.pubsub.kafka.KConsumer
 import me.milan.pubsub.kafka.KConsumer.ConsumerGroupId
+import me.milan.domain.Error
 
 object KafkaAdminClient {
 
@@ -67,24 +71,34 @@ class KafkaAdminClient[F[_]: ConcurrentEffect](
       ).configs(
         Map(
           "delete.retention.ms" -> topicConfig.retention.toMillis.show,
-          "retention.ms" -> topicConfig.retention.toMillis.show
+          "retention.ms" -> topicConfig.retention.toMillis.show,
+          "message.timestamp.type" -> "CreateTime"
         ).asJava
       )
     }
 
-    ConcurrentEffect[F]
-      .async[Unit] { cb =>
-        adminClient
-          .createTopics(newTopics.asJavaCollection)
-          .all()
-          .whenComplete { (_, throwable) =>
-            cb(Option(throwable).toLeft(()))
+    adminClient
+      .createTopics(newTopics.asJavaCollection)
+      .values()
+      .asScala
+      .values
+      .toList
+      .map { future =>
+        ConcurrentEffect[F]
+          .async[Unit] { cb =>
+            future
+              .whenComplete { (_, throwable) =>
+                cb(Option(throwable).toLeft(()))
+              }
+            ()
           }
-        ()
+          .handleError {
+            case _: org.apache.kafka.common.errors.TopicExistsException => ()
+          }
       }
-      .handleError {
-        case _: org.apache.kafka.common.errors.TopicExistsException => ()
-      }
+      .sequence
+      .void
+
   }
 
   def createTopic(topicConfig: TopicConfig): F[Unit] = createTopics(Set(topicConfig))
@@ -113,19 +127,27 @@ class KafkaAdminClient[F[_]: ConcurrentEffect](
     } yield ()
 
   private def deleteTopics(topics: Set[Topic]): F[Unit] =
-    ConcurrentEffect[F]
-      .async[Unit] { cb =>
-        adminClient
-          .deleteTopics(topics.map(_.value).asJavaCollection)
-          .all
-          .whenComplete { (_, throwable) =>
-            cb(Option(throwable).toLeft(()))
+    adminClient
+      .deleteTopics(topics.map(_.value).asJavaCollection)
+      .values()
+      .asScala
+      .values
+      .toList
+      .map { future =>
+        ConcurrentEffect[F]
+          .async[Unit] { cb =>
+            future
+              .whenComplete { (_, throwable) =>
+                cb(Option(throwable).toLeft(()))
+              }
+            ()
           }
-        ()
+          .recover {
+            case _: UnknownTopicOrPartitionException => ()
+          }
       }
-      .recover {
-        case _: UnknownTopicOrPartitionException => ()
-      }
+      .sequence
+      .void
 
   def consumerGroupHosts(consumerGroupId: ConsumerGroupId): F[Set[Uri]] =
     consumerGroupMembers(consumerGroupId)
@@ -189,13 +211,17 @@ class KafkaAdminClient[F[_]: ConcurrentEffect](
     topic: Topic,
     consumer: KafkaConsumer[String, GenericRecord]
   ): F[List[TopicPartition]] =
-    ConcurrentEffect[F].delay(
-      consumer
-        .partitionsFor(topic.value, 1.second.toJava)
-        .asScala
-        .map(partitionInfo => new TopicPartition(topic.value, partitionInfo.partition))
-        .toList
-    ) //TODO: throws NPE when topic does not exist
+    ConcurrentEffect[F]
+      .delay(
+        consumer
+          .partitionsFor(topic.value, 1.second.toJava)
+          .asScala
+          .map(partitionInfo => new TopicPartition(topic.value, partitionInfo.partition))
+          .toList
+      )
+      .adaptError {
+        case _: java.lang.NullPointerException => Error.TopicNotFound
+      }
 
   private def resetPartitionsToTimestamp(
     consumer: KafkaConsumer[String, GenericRecord],
