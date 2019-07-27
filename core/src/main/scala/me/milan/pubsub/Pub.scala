@@ -2,7 +2,6 @@ package me.milan.pubsub
 
 import cats.Applicative
 import cats.effect.ConcurrentEffect
-import com.sksamuel.avro4s.{ Decoder, Encoder, SchemaFor }
 import org.apache.avro.generic.GenericRecord
 import org.apache.kafka.clients.producer.{ Callback, KafkaProducer, ProducerRecord, RecordMetadata }
 
@@ -11,12 +10,9 @@ import me.milan.serdes.AvroSerde
 
 object Pub {
 
-  def mock[F[_], V](
-    implicit
-    A: Applicative[F]
-  ): Pub[F, V] = MockPub[F, V]
+  def mock[F[_]: Applicative, V]: Pub[F, V] = new MockPub[F, V]
 
-  def kafka[F[_]: ConcurrentEffect, V >: Null: SchemaFor: Decoder: Encoder](
+  def kafka[F[_]: ConcurrentEffect, V >: Null: AvroSerde](
     implicit
     kafkaProducer: KafkaProducer[String, GenericRecord]
   ): Pub[F, V] = new KafkaPub[F, V]
@@ -29,15 +25,13 @@ trait Pub[F[_], V] {
 
 }
 
-private[pubsub] class KafkaPub[F[_]: ConcurrentEffect, V >: Null: SchemaFor: Decoder: Encoder](
+private[pubsub] class KafkaPub[F[_]: ConcurrentEffect, V >: Null: AvroSerde](
   implicit
   kafkaProducer: KafkaProducer[String, GenericRecord]
 ) extends Pub[F, V] {
 
   override def publish(record: Record[V]): F[Unit] =
     ConcurrentEffect[F].async { cb =>
-      val valueAvroSerde = new AvroSerde[V]
-
       kafkaProducer
         .send(
           new ProducerRecord(
@@ -45,7 +39,7 @@ private[pubsub] class KafkaPub[F[_]: ConcurrentEffect, V >: Null: SchemaFor: Dec
             record.partitionId.orNull,
             record.timestamp,
             record.key.value,
-            valueAvroSerde.encode(record.value)
+            AvroSerde[V].encode(record.value)
           ),
           callback {
             case (_, throwable) =>
@@ -65,13 +59,9 @@ private[pubsub] class KafkaPub[F[_]: ConcurrentEffect, V >: Null: SchemaFor: Dec
     }
 }
 
-private[pubsub] case class MockPub[F[_], V](
-)(
-  implicit
-  A: Applicative[F]
-) extends Pub[F, V] {
+private[pubsub] class MockPub[F[_]: Applicative, V] extends Pub[F, V] {
 
   override def publish(record: Record[V]): F[Unit] =
-    A.pure(())
+    Applicative[F].pure(())
 
 }

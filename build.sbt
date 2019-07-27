@@ -81,9 +81,9 @@ lazy val D = new {
     val fs2 = "1.0.5"
     val http4s = "0.20.6"
     val kafka = "2.3.0"
-    val kafkaConfluent = "5.2.2"
+    val kafkaConfluent = "5.3.0"
     val kittens = "1.2.1"
-    val monocle = "1.5.0"
+    val monocle = "1.6.0"
     val pureConfig = "0.11.1"
     val scalaJava8 = "0.9.0"
 

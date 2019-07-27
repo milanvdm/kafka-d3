@@ -8,6 +8,7 @@ import org.scalatest.{ Matchers, WordSpec }
 
 import me.milan.kafka.{ Fixtures, KafkaTestKit }
 import me.milan.pubsub.Sub
+import me.milan.serdes.auto._
 
 class KafkaAdminClientSpec extends WordSpec with Matchers with KafkaTestKit {
   import Fixtures._

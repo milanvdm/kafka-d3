@@ -8,12 +8,7 @@ import me.milan.pubsub.Pub
 
 object CommandProcessor {
 
-  def dummy[F[_], V](
-    pub: Pub[F, V]
-  )(
-    implicit
-    M: Monad[F]
-  ): CommandProcessor[F, V] = DummyCommandProcessor(pub)
+  def dummy[F[_]: Monad, V](pub: Pub[F, V]): CommandProcessor[F, V] = DummyCommandProcessor(pub)
 
 }
 
@@ -23,12 +18,7 @@ trait CommandProcessor[F[_], V] {
 
 }
 
-private[commands] case class DummyCommandProcessor[F[_], V](
-  pub: Pub[F, V]
-)(
-  implicit
-  M: Monad[F]
-) extends CommandProcessor[F, V] {
+private[commands] case class DummyCommandProcessor[F[_]: Monad, V](pub: Pub[F, V]) extends CommandProcessor[F, V] {
 
   override def process(command: Command): F[Unit] =
     for {

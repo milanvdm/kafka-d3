@@ -13,10 +13,10 @@ import org.apache.avro.generic.GenericRecord
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.scalatest.{ Matchers, WordSpec }
 
-import me.milan.domain.Topic
-import me.milan.domain.Error
+import me.milan.domain.{ Error, Topic }
 import me.milan.kafka.{ Fixtures, KafkaTestKit }
 import me.milan.pubsub.kafka.KProducer
+import me.milan.serdes.auto._
 
 class SubSpec extends WordSpec with Matchers with KafkaTestKit {
   import Fixtures._

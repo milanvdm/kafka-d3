@@ -12,6 +12,7 @@ import me.milan.domain._
 import me.milan.kafka.KafkaTestKit
 import me.milan.pubsub.kafka.KProducer
 import me.milan.pubsub.{ Pub, Sub }
+import me.milan.serdes.auto._
 
 class KafkaTtlWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTestKit {
   import events.UserEvents._

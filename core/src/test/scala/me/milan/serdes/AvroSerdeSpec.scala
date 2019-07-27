@@ -1,9 +1,9 @@
 package me.milan.serdes
 
-import com.sksamuel.avro4s.RecordFormat
 import org.scalatest.{ Matchers, WordSpec }
 
 import me.milan.domain.TombStone
+import me.milan.serdes.auto._
 
 class AvroSerdeSpec extends WordSpec with Matchers {
   import AvroSerdeSpec._
@@ -14,7 +14,7 @@ class AvroSerdeSpec extends WordSpec with Matchers {
 
         "successfully give back the same object" in {
 
-          val avroSerde = new AvroSerde[Key1]
+          val avroSerde = AvroSerde[Key1]
 
           val result = avroSerde.decode(avroSerde.encode(key1))
 
@@ -24,13 +24,13 @@ class AvroSerdeSpec extends WordSpec with Matchers {
 
         "successfully decode to the right sub type of sealed trait" in {
 
-          val subtypeFormat = RecordFormat[Key1]
+          val subtypeFormat = AvroSerde[Key1]
 
-          val record = subtypeFormat.to(key1)
+          val record = subtypeFormat.encode(key1)
 
-          val traitFormat = RecordFormat[Key]
+          val traitFormat = AvroSerde[Key]
 
-          val result = traitFormat.from(record)
+          val result = traitFormat.decode(record)
 
           result shouldBe key1
 
@@ -38,7 +38,7 @@ class AvroSerdeSpec extends WordSpec with Matchers {
 
         "successfully encode a Tombstone type" in {
 
-          val avroSerde = new AvroSerde[Key3]
+          val avroSerde = AvroSerde[Key3]
 
           val result = avroSerde.encode(key3)
 
@@ -48,7 +48,7 @@ class AvroSerdeSpec extends WordSpec with Matchers {
 
         "fail on non case classes" in {
 
-          val avroSerde = new AvroSerde[String]
+          val avroSerde = AvroSerde[String]
 
           val thrown = the[java.lang.RuntimeException] thrownBy {
                 avroSerde.decode(avroSerde.encode(testString))

@@ -22,16 +22,10 @@ import me.milan.writeside.WriteSideProcessor
 
 object WriteSide {
 
-  def distributed[F[_], A](
+  def distributed[F[_]: Par: Sync: Timer, A: Decoder](
     writeSideConfig: WriteSideConfig,
     httpClient: Client[F],
     writeSideProcessor: WriteSideProcessor[F, A]
-  )(
-    implicit
-    decoder: Decoder[A],
-    P: Par[F],
-    T: Timer[F],
-    S: Sync[F]
   ): WriteSide[F, A] = new DistributedWriteSide(writeSideConfig, httpClient, writeSideProcessor)
 
 }
@@ -44,16 +38,10 @@ trait WriteSide[F[_], A] {
 
 }
 
-private[writeside] class DistributedWriteSide[F[_], A](
+private[writeside] class DistributedWriteSide[F[_]: Par: Sync: Timer, A: Decoder](
   writeSideConfig: WriteSideConfig,
   httpClient: Client[F],
   writeSideProcessor: WriteSideProcessor[F, A]
-)(
-  implicit
-  decoder: Decoder[A],
-  P: Par[F],
-  T: Timer[F],
-  S: Sync[F]
 ) extends WriteSide[F, A] {
 
   //TODO: Double check if this works as `writeSideProcessor.hosts` probably does not know the hosts from stopped nodes
@@ -102,15 +90,10 @@ private[writeside] class DistributedWriteSide[F[_], A](
 
 object DistributedWriteSide {
 
-  def requestNode[F[_], A](
+  def requestNode[F[_]: Sync: Timer, A: Decoder](
     httpClient: Client[F],
     host: () => F[Option[Uri]],
     toRequest: Uri => Request[F]
-  )(
-    implicit
-    decoder: Decoder[A],
-    T: Timer[F],
-    S: Sync[F]
   ): Stream[F, A] = {
     val policy = RetryPolicy[F](RetryPolicy.exponentialBackoff(2.seconds, maxRetry = 3))
     val retryClient = Retry[F](policy)(httpClient)
@@ -123,32 +106,27 @@ object DistributedWriteSide {
       response <- EitherT.liftF[F, Throwable, A](retryClient.expect(request))
     } yield response).value
 
-    val result = S.rethrow(response)
+    val result = Sync[F].rethrow(response)
 
     Stream.retry(result, 1.second, _ + 1.second, maxAttempts = 3)
   }
 
-  def allNodesOk[F[_]](
+  def allNodesOk[F[_]: Par: Sync: Timer](
     httpClient: Client[F],
     hosts: () => F[Set[Uri]],
     toRequest: Uri => Request[F]
-  )(
-    implicit
-    P: Par[F],
-    T: Timer[F],
-    S: Sync[F]
   ): Stream[F, Unit] = {
     val policy = RetryPolicy[F](RetryPolicy.exponentialBackoff(2.seconds, maxRetry = 3))
     val retryClient = Retry[F](policy)(httpClient)
 
     val response: F[Throwable Either Unit] = for {
       foundHosts <- hosts()
-      requests <- S.delay(foundHosts.toList.map(toRequest))
+      requests <- Sync[F].delay(foundHosts.toList.map(toRequest))
       responses <- requests.parTraverse(retryClient.successful)
       allSuccess = !responses.contains(false)
     } yield Either.cond[Throwable, Unit](allSuccess, (), Error.HostNotFound)
 
-    val result = S.rethrow(response)
+    val result = Sync[F].rethrow(response)
 
     Stream.retry(result, 1.second, _ + 1.second, maxAttempts = 3)
   }

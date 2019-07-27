@@ -3,7 +3,6 @@ package me.milan.writeside.kafka
 import scala.concurrent.duration._
 import scala.util.{ Failure, Success, Try }
 
-import com.sksamuel.avro4s.{ Decoder, Encoder, SchemaFor }
 import org.apache.avro.generic.GenericRecord
 import org.apache.kafka.streams.processor.{ Processor, ProcessorContext }
 import org.apache.kafka.streams.state.KeyValueStore
@@ -13,12 +12,12 @@ import me.milan.serdes.{ AvroSerde, TimedGenericRecord }
 
 object KafkaProcessor {
 
-  def aggregate[A >: Null: SchemaFor: Decoder: Encoder, E >: Null: SchemaFor: Decoder: Encoder](
+  def aggregate[A >: Null: AvroSerde, E >: Null: AvroSerde](
     storeName: String,
     aggregator: Aggregator[A, E]
   ): Processor[String, GenericRecord] = new AggregateKafkaProcessor[A, E](storeName, aggregator)
 
-  def ttlAggregate[A >: Null: SchemaFor: Decoder: Encoder, E >: Null: SchemaFor: Decoder: Encoder](
+  def ttlAggregate[A >: Null: AvroSerde, E >: Null: AvroSerde](
     storeName: String,
     aggregator: Aggregator[A, E],
     timeToLive: FiniteDuration
@@ -27,19 +26,13 @@ object KafkaProcessor {
 
 }
 
-private[kafka] class AggregateKafkaProcessor[
-  A >: Null: SchemaFor: Decoder: Encoder,
-  E >: Null: SchemaFor: Decoder: Encoder
-](
+private[kafka] class AggregateKafkaProcessor[A >: Null: AvroSerde, E >: Null: AvroSerde](
   storeName: String,
   aggregator: Aggregator[A, E]
 ) extends Processor[String, GenericRecord] {
 
   private var processorContext: ProcessorContext = _
   private var kvStore: KeyValueStore[String, GenericRecord] = _
-
-  private val eventAvroSerde = new AvroSerde[E]
-  private val aggregateAvroSerde = new AvroSerde[A]
 
   override def init(processorContext: ProcessorContext): Unit = {
     this.processorContext = processorContext
@@ -59,11 +52,11 @@ private[kafka] class AggregateKafkaProcessor[
     key: String,
     event: GenericRecord
   ): Unit = {
-    val decodedEvent = eventAvroSerde.decode(event)
+    val decodedEvent = AvroSerde[E].decode(event)
     val currentAggregate = Option(kvStore.get(key))
-    val decodedCurrentAggregate = currentAggregate.map(aggregateAvroSerde.decode)
+    val decodedCurrentAggregate = currentAggregate.map(AvroSerde[A].decode)
     val newAggregate = aggregator.process(decodedCurrentAggregate, decodedEvent)
-    val encodedNewAggregate = aggregateAvroSerde.encode(newAggregate)
+    val encodedNewAggregate = AvroSerde[A].encode(newAggregate)
 
     kvStore.put(key, encodedNewAggregate)
     processorContext.forward(key, encodedNewAggregate)
@@ -73,10 +66,7 @@ private[kafka] class AggregateKafkaProcessor[
   override def close(): Unit = ()
 }
 
-private[kafka] class TimeToLiveAggregateKafkaProcessor[
-  A >: Null: SchemaFor: Decoder: Encoder,
-  E >: Null: SchemaFor: Decoder: Encoder
-](
+private[kafka] class TimeToLiveAggregateKafkaProcessor[A >: Null: AvroSerde, E >: Null: AvroSerde](
   storeName: String,
   aggregator: Aggregator[A, E],
   timeToLive: FiniteDuration
@@ -84,9 +74,6 @@ private[kafka] class TimeToLiveAggregateKafkaProcessor[
 
   private var processorContext: ProcessorContext = _
   private var kvStore: KeyValueStore[String, TimedGenericRecord] = _
-
-  private val eventAvroSerde = new AvroSerde[E]
-  private val aggregateAvroSerde = new AvroSerde[A]
 
   override def init(processorContext: ProcessorContext): Unit = {
     this.processorContext = processorContext
@@ -119,12 +106,12 @@ private[kafka] class TimeToLiveAggregateKafkaProcessor[
       return
     }
 
-    val decodedEvent = eventAvroSerde.decode(event)
+    val decodedEvent = AvroSerde[E].decode(event)
     val currentAggregate = timedGenericRecord.map(_.record)
-    val decodedCurrentAggregate = currentAggregate.map(aggregateAvroSerde.decode)
+    val decodedCurrentAggregate = currentAggregate.map(AvroSerde[A].decode)
     val newAggregate = aggregator.process(decodedCurrentAggregate, decodedEvent)
     val encodedNewAggregate = TimedGenericRecord(
-      aggregateAvroSerde.encode(newAggregate),
+      AvroSerde[A].encode(newAggregate),
       Math.max(processorContext.timestamp, timedGenericRecord.map(_.timestamp).getOrElse(-1L))
     )
 

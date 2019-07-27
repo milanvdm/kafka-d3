@@ -1,5 +1,6 @@
 package me.milan.pubsub.http
 
+import cats.effect
 import cats.effect.Sync
 import cats.syntax.apply._
 import io.circe.Encoder
@@ -14,14 +15,10 @@ import me.milan.writeside.http.WriteSide
 
 object PubSubRoutes {
 
-  def http4sRoutes[F[_], A](
+  def http4sRoutes[F[_]: Sync, A: Encoder](
     writeSideConfig: WriteSideConfig,
     writeSide: WriteSide[F, A],
     writeSideProcessor: WriteSideProcessor[F, A]
-  )(
-    implicit
-    encoder: Encoder[A],
-    S: Sync[F]
   ): HttpRoutes[F] =
     new Http4sPubSubService[F, A](
       writeSideConfig,
@@ -31,14 +28,10 @@ object PubSubRoutes {
 
 }
 
-private[http] class Http4sPubSubService[F[_], A](
+private[http] class Http4sPubSubService[F[_]: effect.Sync, A: Encoder](
   writeSideConfig: WriteSideConfig,
   writeSide: WriteSide[F, A],
   writeSideProcessor: WriteSideProcessor[F, A]
-)(
-  implicit
-  encoder: Encoder[A],
-  S: Sync[F]
 ) extends Http4sDsl[F] {
 
   def routes: HttpRoutes[F] =

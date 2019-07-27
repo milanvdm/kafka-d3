@@ -8,7 +8,6 @@ import scala.concurrent.duration._
 
 import cats.effect.Sync
 import cats.syntax.show._
-import com.sksamuel.avro4s.{ Decoder, Encoder, SchemaFor }
 import io.confluent.kafka.serializers.AbstractKafkaAvroSerDeConfig
 import org.apache.avro.generic.GenericRecord
 import org.apache.kafka.clients.consumer.ConsumerConfig
@@ -27,20 +26,17 @@ import me.milan.writeside.kafka.{ KafkaProcessor, KafkaStore }
 
 object WriteSideProcessor {
 
-  def kafka[F[_], A >: Null: SchemaFor: Decoder: Encoder, E >: Null: SchemaFor: Decoder: Encoder](
+  def kafka[F[_]: Sync, A >: Null: AvroSerde, E >: Null: AvroSerde](
     kafkaConfig: KafkaConfig,
     writeSideConfig: WriteSideConfig,
     aggregator: Aggregator[A, E],
     name: String,
     from: Topic,
     to: Topic
-  )(
-    implicit
-    S: Sync[F]
   ): WriteSideProcessor[F, A] =
     new KafkaWriteSideProcessor[F, A, E](kafkaConfig, writeSideConfig, aggregator, name, from, to)
 
-  def kafkaTimeToLive[F[_], A >: Null: SchemaFor: Decoder: Encoder, E >: Null: SchemaFor: Decoder: Encoder](
+  def kafkaTimeToLive[F[_]: Sync, A >: Null: AvroSerde, E >: Null: AvroSerde](
     kafkaConfig: KafkaConfig,
     writeSideConfig: WriteSideConfig,
     aggregator: Aggregator[A, E],
@@ -48,9 +44,6 @@ object WriteSideProcessor {
     from: Topic,
     to: Topic,
     timeToLive: FiniteDuration
-  )(
-    implicit
-    F: Sync[F]
   ): WriteSideProcessor[F, A] =
     new KafkaTimeToLiveWriteSideProcessor[F, A, E](kafkaConfig, writeSideConfig, aggregator, name, from, to, timeToLive)
 
@@ -67,20 +60,13 @@ trait WriteSideProcessor[F[_], A] {
 
 }
 
-private[writeside] class KafkaWriteSideProcessor[
-  F[_],
-  A >: Null: SchemaFor: Decoder: Encoder,
-  E >: Null: SchemaFor: Decoder: Encoder
-](
+private[writeside] class KafkaWriteSideProcessor[F[_]: Sync, A >: Null: AvroSerde, E >: Null: AvroSerde](
   kafkaConfig: KafkaConfig,
   writeSideConfig: WriteSideConfig,
   aggregator: Aggregator[A, E],
   name: String,
   from: Topic,
   to: Topic
-)(
-  implicit
-  S: Sync[F]
 ) extends WriteSideProcessor[F, A] {
 
   private val props: Properties = {
@@ -95,33 +81,29 @@ private[writeside] class KafkaWriteSideProcessor[
     p
   }
 
-  val eventAvroSerde = new AvroSerde[E]
-  val aggregateAvroSerde = new AvroSerde[A]
-
   var stream: KafkaStreams = _
 
   //TODO: Check if state is not running because stream needs to be stopped first
-  override def start: F[Unit] = S.delay {
+  override def start: F[Unit] = Sync[F].delay {
     shutdownHook()
     stream = create // Stream object needs to be recreated on startup
     stream.start()
   }
 
   override def aggregateById(key: String): F[Option[A]] = {
-    val aggregateAvroSerde = new AvroSerde[A]
     val encodedAggregate = Option(
       stream
         .store(s"store-${from.value}-${to.value}", QueryableStoreTypes.keyValueStore[String, GenericRecord])
         .get(key)
     )
 
-    S.delay(
-      encodedAggregate.map(aggregateAvroSerde.decode)
+    Sync[F].delay(
+      encodedAggregate.map(AvroSerde[A].decode)
     )
   }
 
   override def hosts: F[Set[Uri]] =
-    S.delay(
+    Sync[F].delay(
       stream.allMetadata.asScala
         .map(metadata => Uri.fromString(s"${metadata.host}:${metadata.port}"))
         .collect {
@@ -138,16 +120,16 @@ private[writeside] class KafkaWriteSideProcessor[
       case _                             => Uri.fromString(s"${metadata.host}:${metadata.port}").toOption
     }
 
-    S.delay(
+    Sync[F].delay(
       uri
     )
   }
 
-  override def clean: F[Unit] = S.delay {
+  override def clean: F[Unit] = Sync[F].delay {
     stream.cleanUp()
   }
 
-  override def stop: F[Unit] = S.delay {
+  override def stop: F[Unit] = Sync[F].delay {
     stream.close(10.seconds.toJava)
     ()
   }
@@ -181,11 +163,7 @@ private[writeside] class KafkaWriteSideProcessor[
     })
 }
 
-private[writeside] class KafkaTimeToLiveWriteSideProcessor[
-  F[_],
-  A >: Null: SchemaFor: Decoder: Encoder,
-  E >: Null: SchemaFor: Decoder: Encoder
-](
+private[writeside] class KafkaTimeToLiveWriteSideProcessor[F[_]: Sync, A >: Null: AvroSerde, E >: Null: AvroSerde](
   kafkaConfig: KafkaConfig,
   writeSideConfig: WriteSideConfig,
   aggregator: Aggregator[A, E],
@@ -193,9 +171,6 @@ private[writeside] class KafkaTimeToLiveWriteSideProcessor[
   from: Topic,
   to: Topic,
   timeToLive: FiniteDuration
-)(
-  implicit
-  S: Sync[F]
 ) extends WriteSideProcessor[F, A] {
 
   private val props: Properties = {
@@ -210,33 +185,29 @@ private[writeside] class KafkaTimeToLiveWriteSideProcessor[
     p
   }
 
-  val eventAvroSerde = new AvroSerde[E]
-  val aggregateAvroSerde = new AvroSerde[A]
-
   var stream: KafkaStreams = _
 
   //TODO: Check if state is not running because stream needs to be stopped first
-  override def start: F[Unit] = S.delay {
+  override def start: F[Unit] = Sync[F].delay {
     shutdownHook()
     stream = create
     stream.start()
   }
 
   override def aggregateById(key: String): F[Option[A]] = {
-    val aggregateAvroSerde = new AvroSerde[A]
     val encodedAggregate = Option(
       stream
         .store(s"store-${from.value}-${to.value}", QueryableStoreTypes.keyValueStore[String, GenericRecord])
         .get(key)
     )
 
-    S.delay(
-      encodedAggregate.map(aggregateAvroSerde.decode)
+    Sync[F].delay(
+      encodedAggregate.map(AvroSerde[A].decode)
     )
   }
 
   override def hosts: F[Set[Uri]] =
-    S.delay(
+    Sync[F].delay(
       stream.allMetadata.asScala
         .map(metadata => Uri.fromString(s"${metadata.host}:${metadata.port}"))
         .collect {
@@ -253,16 +224,16 @@ private[writeside] class KafkaTimeToLiveWriteSideProcessor[
       case _                             => Uri.fromString(s"${metadata.host}:${metadata.port}").toOption
     }
 
-    S.delay(
+    Sync[F].delay(
       uri
     )
   }
 
-  override def clean: F[Unit] = S.delay {
+  override def clean: F[Unit] = Sync[F].delay {
     stream.cleanUp()
   }
 
-  override def stop: F[Unit] = S.delay {
+  override def stop: F[Unit] = Sync[F].delay {
     stream.close(10.seconds.toJava)
     ()
   }

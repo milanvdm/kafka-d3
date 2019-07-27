@@ -12,7 +12,6 @@ import cats.effect.concurrent.MVar
 import cats.syntax.applicativeError._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
-import com.sksamuel.avro4s.{ Decoder, Encoder, SchemaFor }
 import fs2.Stream
 import fs2.concurrent.SignallingRef
 import org.apache.avro.generic.GenericRecord
@@ -26,20 +25,12 @@ import me.milan.serdes.AvroSerde
 
 object Sub {
 
-  def mock[F[_], V](
-    stream: Stream[F, Record[V]]
-  )(
-    implicit
-    A: Applicative[F]
-  ): Sub[F, V] = MockSub(stream)
+  def mock[F[_]: Applicative, V](stream: Stream[F, Record[V]]): Sub[F, V] = MockSub(stream)
 
-  def kafka[F[_], V >: Null: SchemaFor: Decoder: Encoder](
+  def kafka[F[_]: ConcurrentEffect, V >: Null: AvroSerde](
     config: KafkaConfig,
     consumerGroupId: ConsumerGroupId,
     topic: Topic
-  )(
-    implicit
-    C: ConcurrentEffect[F]
   ): F[Sub[F, V]] =
     MVar.empty[F, KafkaConsumer[String, GenericRecord]].flatMap { kafkaConsumer =>
       SignallingRef[F, Boolean](false).flatMap { pauseSignal =>
@@ -60,16 +51,13 @@ trait Sub[F[_], V] {
 
 }
 
-private[pubsub] class KafkaSub[F[_], V >: Null: SchemaFor: Decoder: Encoder](
+private[pubsub] class KafkaSub[F[_]: ConcurrentEffect, V >: Null: AvroSerde](
   config: KafkaConfig,
   consumerGroupId: ConsumerGroupId,
   topic: Topic,
   kafkaConsumer: MVar[F, KafkaConsumer[String, GenericRecord]],
   pauseSignal: SignallingRef[F, Boolean],
   haltSignal: SignallingRef[F, Boolean]
-)(
-  implicit
-  C: ConcurrentEffect[F]
 ) extends Sub[F, V] {
 
   //TODO: Check if stream is stopped (and initialized) before starting
@@ -105,8 +93,6 @@ private[pubsub] class KafkaSub[F[_], V >: Null: SchemaFor: Decoder: Encoder](
       Stream
         .eval {
           kafkaConsumer.read.map { consumer =>
-            val valueAvroSerde = new AvroSerde[V]
-
             val consumerRecords = consumer
               .poll(500.millis.toJava)
               .records(topic.value)
@@ -117,7 +103,7 @@ private[pubsub] class KafkaSub[F[_], V >: Null: SchemaFor: Decoder: Encoder](
               Record(
                 Topic(record.topic),
                 Key(record.key),
-                valueAvroSerde.decode(record.value),
+                AvroSerde[V].decode(record.value),
                 record.timestamp
               )
             }
@@ -152,17 +138,12 @@ private[pubsub] class KafkaSub[F[_], V >: Null: SchemaFor: Decoder: Encoder](
   }
 }
 
-private[pubsub] case class MockSub[F[_], V](
-  stream: Stream[F, Record[V]]
-)(
-  implicit
-  A: Applicative[F]
-) extends Sub[F, V] {
+private[pubsub] case class MockSub[F[_]: Applicative, V](stream: Stream[F, Record[V]]) extends Sub[F, V] {
 
   override def start: Stream[F, Record[V]] = stream
-  override def pause: F[Unit] = A.pure(())
-  override def resume: F[Unit] = A.pure(())
-  override def reset: F[Unit] = A.pure(())
-  override def stop: F[Unit] = A.pure(())
+  override def pause: F[Unit] = Applicative[F].pure(())
+  override def resume: F[Unit] = Applicative[F].pure(())
+  override def reset: F[Unit] = Applicative[F].pure(())
+  override def stop: F[Unit] = Applicative[F].pure(())
 
 }

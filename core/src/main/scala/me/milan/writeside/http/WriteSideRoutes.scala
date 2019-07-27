@@ -13,14 +13,10 @@ import me.milan.writeside.WriteSideProcessor
 
 object WriteSideRoutes {
 
-  def http4sRoutes[F[_], A](
+  def http4sRoutes[F[_]: Sync, A: Encoder](
     writeSideConfig: WriteSideConfig,
     writeSide: WriteSide[F, A],
     writeSideProcessor: WriteSideProcessor[F, A]
-  )(
-    implicit
-    encoder: Encoder[A],
-    S: Sync[F]
   ): HttpRoutes[F] =
     new Http4sWriteSideService[F, A](
       writeSideConfig,
@@ -30,14 +26,10 @@ object WriteSideRoutes {
 
 }
 
-private[http] class Http4sWriteSideService[F[_], A](
+private[http] class Http4sWriteSideService[F[_]: Sync, A: Encoder](
   writeSideConfig: WriteSideConfig,
   writeSide: WriteSide[F, A],
   writeSideProcessor: WriteSideProcessor[F, A]
-)(
-  implicit
-  encoder: Encoder[A],
-  S: Sync[F]
 ) extends Http4sDsl[F] {
 
   def routes: HttpRoutes[F] =

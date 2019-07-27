@@ -11,6 +11,7 @@ import me.milan.clients.kafka.SchemaRegistryClient.Schema
 import me.milan.kafka.{ Fixtures, KafkaTestKit }
 import me.milan.pubsub.Pub
 import me.milan.pubsub.kafka.KProducer
+import me.milan.serdes.auto._
 
 class SchemaRegistrySpec extends WordSpec with Matchers with KafkaTestKit {
   import Fixtures._
