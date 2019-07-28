@@ -32,14 +32,14 @@ class KafkaTtlWriteSideProcessorSpec extends WordSpec with Matchers with KafkaTe
             Sub.kafka[IO, UserState](applicationConfig.kafka, fixtures.consumerGroupId, fixtures.to).unsafeRunSync()
 
           val writeSideProcessor = WriteSideProcessor
-            .kafkaTimeToLive[IO, UserState, UserEvent](
+            .kafka[IO, UserState, UserEvent](
               applicationConfig.kafka,
               applicationConfig.writeSide,
               UserAggregator,
               "KafkaTtlWriteSideProcessorSpec",
               fixtures.from,
               fixtures.to,
-              1.millis
+              Some(1.millis)
             )
 
           val created: Record[UserCreated] = Record(fixtures.from, userId, UserCreated(userId, "Milan"), 0)

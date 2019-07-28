@@ -82,8 +82,6 @@ lazy val D = new {
     val http4s = "0.20.6"
     val kafka = "2.3.0"
     val kafkaConfluent = "5.3.0"
-    val kittens = "1.2.1"
-    val monocle = "1.6.0"
     val pureConfig = "0.11.1"
     val scalaJava8 = "0.9.0"
 
@@ -110,8 +108,6 @@ lazy val D = new {
   val kafkaClient = "org.apache.kafka"           % "kafka-clients"                % Versions.kafka
   val kafkaSchemaRegistryClient = "io.confluent" % "kafka-schema-registry-client" % Versions.kafkaConfluent
   val kafkaStreams = "org.apache.kafka"          %% "kafka-streams-scala"         % Versions.kafka
-  val kittens = "org.typelevel"                  %% "kittens"                     % Versions.kittens
-  val monocle = "com.github.julien-truffaut"     %% "monocle-core"                % Versions.monocle
   val pureConfig = "com.github.pureconfig"       %% "pureconfig"                  % Versions.pureConfig
   val scalaJava8 = "org.scala-lang.modules"      %% "scala-java8-compat"          % Versions.scalaJava8
 
@@ -160,8 +156,6 @@ lazy val core = Project(
           D.kafkaClient,
           D.kafkaStreams,
           D.kafkaSchemaRegistryClient,
-          D.kittens,
-          D.monocle,
           D.pureConfig,
           D.scalaJava8,
           D.scalaTest % "it,test"

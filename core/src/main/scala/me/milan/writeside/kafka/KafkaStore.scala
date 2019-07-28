@@ -6,55 +6,40 @@ import io.confluent.kafka.serializers.AbstractKafkaAvroSerDeConfig
 import io.confluent.kafka.streams.serdes.avro.GenericAvroSerde
 import org.apache.avro.generic.GenericRecord
 import org.apache.kafka.streams.scala.Serdes
-import org.apache.kafka.streams.state.{ KeyValueStore, StoreBuilder, Stores }
+import org.apache.kafka.streams.state.{ StoreBuilder, Stores, TimestampedKeyValueStore }
 
 import me.milan.config.KafkaConfig.SchemaRegistryConfig
-import me.milan.serdes.TimedGenericRecord
+import me.milan.domain.Topic
+
+case class StoreName(value: String) extends AnyVal
+object StoreName {
+  def apply(
+    from: Topic,
+    to: Topic
+  ): StoreName = new StoreName(s"store-${from.value}-${to.value}")
+}
 
 object KafkaStore {
 
   def kvStoreBuilder(
     schemaRegistryConfig: SchemaRegistryConfig,
-    storeName: String
-  ): StoreBuilder[KeyValueStore[String, GenericRecord]] = {
-    val serdeConfig = Map(
-      AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG -> schemaRegistryConfig.uri.renderString
-    )
-
-    val valueGenericAvroSerde = new GenericAvroSerde()
-    valueGenericAvroSerde.configure(serdeConfig.asJava, false)
-
+    storeName: StoreName
+  ): StoreBuilder[TimestampedKeyValueStore[String, GenericRecord]] =
     Stores
-      .keyValueStoreBuilder(
-        Stores.persistentKeyValueStore(storeName),
+      .timestampedKeyValueStoreBuilder[String, GenericRecord](
+        Stores.persistentKeyValueStore(storeName.value),
         Serdes.String,
-        valueGenericAvroSerde
+        genericRecordAvroSerde(schemaRegistryConfig)
       )
       .withCachingDisabled
-  }
 
-  def kvWithTimeStoreBuilder(
-    schemaRegistryConfig: SchemaRegistryConfig,
-    storeName: String
-  ): StoreBuilder[KeyValueStore[String, TimedGenericRecord]] = {
+  private def genericRecordAvroSerde(schemaRegistryConfig: SchemaRegistryConfig): GenericAvroSerde = {
     val serdeConfig = Map(
       AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG -> schemaRegistryConfig.uri.renderString
     )
 
     val genericAvroSerde = new GenericAvroSerde()
     genericAvroSerde.configure(serdeConfig.asJava, false)
-
-    val timedGenericRecordSerdes = TimedGenericRecord.serdes(
-      genericAvroSerde,
-      Serdes.Long
-    )
-
-    Stores
-      .keyValueStoreBuilder(
-        Stores.persistentKeyValueStore(storeName),
-        Serdes.String,
-        timedGenericRecordSerdes
-      )
-      .withCachingDisabled
+    genericAvroSerde
   }
 }
