@@ -1,6 +1,5 @@
-//package me.milan.pubsub.http
+//package me.milan.store.http
 //
-//import cats.effect
 //import cats.effect.Sync
 //import cats.syntax.apply._
 //import io.circe.Encoder
@@ -11,16 +10,15 @@
 //
 //import me.milan.config.WriteSideConfig
 //import me.milan.events.WriteSideProcessor
-//import me.milan.store.http.WriteSide
 //
-//object PubSubRoutes {
+//object WriteSideRoutes {
 //
 //  def http4sRoutes[F[_]: Sync, A: Encoder](
 //    writeSideConfig: WriteSideConfig,
 //    writeSide: WriteSide[F, A],
 //    writeSideProcessor: WriteSideProcessor[F, A]
 //  ): HttpRoutes[F] =
-//    new Http4sPubSubService[F, A](
+//    new Http4sWriteSideService[F, A](
 //      writeSideConfig,
 //      writeSide,
 //      writeSideProcessor
@@ -28,7 +26,7 @@
 //
 //}
 //
-//private[http] class Http4sPubSubService[F[_]: effect.Sync, A: Encoder](
+//private[http] class Http4sWriteSideService[F[_]: Sync, A: Encoder](
 //  writeSideConfig: WriteSideConfig,
 //  writeSide: WriteSide[F, A],
 //  writeSideProcessor: WriteSideProcessor[F, A]
@@ -37,7 +35,7 @@
 //  def routes: HttpRoutes[F] =
 //    HttpRoutes
 //      .of[F] {
-//        case POST -> (Root / "start" / writeSideConfig.urlPath.value / "start") =>
+//        case POST -> (Root / writeSideConfig.urlPath.value / "start") =>
 //          writeSide.start.compile.drain *> Ok()
 //        case POST -> (Root / writeSideConfig.urlPath.value / "local" / "start") =>
 //          writeSideProcessor.start *> Ok()

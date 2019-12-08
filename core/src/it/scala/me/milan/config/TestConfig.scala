@@ -28,8 +28,8 @@ object TestConfig {
         )
       }.toList
     ),
-    writeSide = WriteSideConfig(
-      WriteSideConfig.UrlPath("system")
+    writeSide = AggregateStoreConfig(
+      AggregateStoreConfig.UrlPath("system")
     )
   )
 

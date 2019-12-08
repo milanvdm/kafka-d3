@@ -1,6 +1,5 @@
 package me.milan.pubsub
 
-import cats.Applicative
 import cats.effect.ConcurrentEffect
 import org.apache.avro.generic.GenericRecord
 import org.apache.kafka.clients.producer.{ Callback, KafkaProducer, ProducerRecord, RecordMetadata }
@@ -9,8 +8,6 @@ import me.milan.domain.Record
 import me.milan.serdes.AvroSerde
 
 object Pub {
-
-  def mock[F[_]: Applicative, V]: Pub[F, V] = new MockPub[F, V]
 
   def kafka[F[_]: ConcurrentEffect, V >: Null: AvroSerde](
     implicit
@@ -57,11 +54,4 @@ private[pubsub] class KafkaPub[F[_]: ConcurrentEffect, V >: Null: AvroSerde](
       ): Unit =
         f(metadata, exception)
     }
-}
-
-private[pubsub] class MockPub[F[_]: Applicative, V] extends Pub[F, V] {
-
-  override def publish(record: Record[V]): F[Unit] =
-    Applicative[F].pure(())
-
 }

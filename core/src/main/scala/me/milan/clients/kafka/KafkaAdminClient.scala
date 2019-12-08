@@ -167,6 +167,7 @@ class KafkaAdminClient[F[_]: ConcurrentEffect](
       .map(_.map(_.members.asScala.toSet))
       .map(_.getOrElse(Set.empty))
 
+  // TODO: Should be fixed in Kafka 2.5 (exposed method in AdminClient)
   // Based on https://github.com/apache/kafka/blob/2.1.1/core/src/main/scala/kafka/admin/ConsumerGroupCommand.scala#L300
   def resetConsumerGroup(
     consumerGroupId: ConsumerGroupId,

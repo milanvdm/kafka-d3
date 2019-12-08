@@ -1,14 +1,14 @@
-package me.milan.writeside.http
+package me.milan.store.http
 
 import scala.concurrent.duration._
 
+import cats.Parallel
 import cats.data.EitherT
 import cats.effect.{ Sync, Timer }
 import cats.instances.list._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
 import cats.syntax.parallel._
-import cats.temp.par._
 import fs2.Stream
 import io.circe.Decoder
 import org.http4s.circe._
@@ -16,16 +16,16 @@ import org.http4s.client.Client
 import org.http4s.client.middleware.{ Retry, RetryPolicy }
 import org.http4s.{ EntityDecoder, Method, Request, Uri }
 
-import me.milan.config.WriteSideConfig
+import me.milan.config.AggregateStoreConfig
 import me.milan.domain.Error
-import me.milan.writeside.WriteSideProcessor
+import me.milan.events.WriteSideProcessor
 
 object WriteSide {
 
-  def distributed[F[_]: Par: Sync: Timer, A: Decoder](
-    writeSideConfig: WriteSideConfig,
-    httpClient: Client[F],
-    writeSideProcessor: WriteSideProcessor[F, A]
+  def distributed[F[_]: Parallel: Sync: Timer, A: Decoder](
+                                                            writeSideConfig: AggregateStoreConfig,
+                                                            httpClient: Client[F],
+                                                            writeSideProcessor: WriteSideProcessor[F, A]
   ): WriteSide[F, A] = new DistributedWriteSide(writeSideConfig, httpClient, writeSideProcessor)
 
 }
@@ -38,10 +38,10 @@ trait WriteSide[F[_], A] {
 
 }
 
-private[writeside] class DistributedWriteSide[F[_]: Par: Sync: Timer, A: Decoder](
-  writeSideConfig: WriteSideConfig,
-  httpClient: Client[F],
-  writeSideProcessor: WriteSideProcessor[F, A]
+private[writeside] class DistributedWriteSide[F[_]: Parallel: Sync: Timer, A: Decoder](
+                                                                                        writeSideConfig: AggregateStoreConfig,
+                                                                                        httpClient: Client[F],
+                                                                                        writeSideProcessor: WriteSideProcessor[F, A]
 ) extends WriteSide[F, A] {
 
   //TODO: Double check if this works as `writeSideProcessor.hosts` probably does not know the hosts from stopped nodes
@@ -111,7 +111,7 @@ object DistributedWriteSide {
     Stream.retry(result, 1.second, _ + 1.second, maxAttempts = 3)
   }
 
-  def allNodesOk[F[_]: Par: Sync: Timer](
+  def allNodesOk[F[_]: Parallel: Sync: Timer](
     httpClient: Client[F],
     hosts: () => F[Set[Uri]],
     toRequest: Uri => Request[F]

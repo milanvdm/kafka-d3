@@ -53,8 +53,8 @@ object TestConfigSpec {
         maxPollInterval = 1.second
       )
     ),
-    writeSide = WriteSideConfig(
-      WriteSideConfig.UrlPath("system"),
+    writeSide = AggregateStoreConfig(
+      AggregateStoreConfig.UrlPath("system"),
       AutoOffsetReset.LATEST
     )
   )

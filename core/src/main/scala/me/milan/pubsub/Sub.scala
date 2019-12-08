@@ -6,7 +6,6 @@ import scala.collection.JavaConverters._
 import scala.compat.java8.DurationConverters._
 import scala.concurrent.duration._
 
-import cats.Applicative
 import cats.effect.ConcurrentEffect
 import cats.effect.concurrent.MVar
 import cats.syntax.applicativeError._
@@ -18,24 +17,24 @@ import org.apache.avro.generic.GenericRecord
 import org.apache.kafka.clients.consumer.KafkaConsumer
 
 import me.milan.config.KafkaConfig
-import me.milan.domain.{ Key, Record, Topic }
+import me.milan.discovery.Registry
+import me.milan.domain.{Key, Record, Topic}
 import me.milan.pubsub.kafka.KConsumer
 import me.milan.pubsub.kafka.KConsumer.ConsumerGroupId
 import me.milan.serdes.AvroSerde
 
 object Sub {
 
-  def mock[F[_]: Applicative, V](stream: Stream[F, Record[V]]): Sub[F, V] = MockSub(stream)
-
   def kafka[F[_]: ConcurrentEffect, V >: Null: AvroSerde](
     config: KafkaConfig,
     consumerGroupId: ConsumerGroupId,
-    topic: Topic
+    topic: Topic,
+    discoveryRegistry: Registry[F]
   ): F[Sub[F, V]] =
     MVar.empty[F, KafkaConsumer[String, GenericRecord]].flatMap { kafkaConsumer =>
       SignallingRef[F, Boolean](false).flatMap { pauseSignal =>
         SignallingRef[F, Boolean](false).map { haltSignal =>
-          new KafkaSub[F, V](config, consumerGroupId, topic, kafkaConsumer, pauseSignal, haltSignal)
+          new KafkaSub[F, V](config, consumerGroupId, topic, kafkaConsumer, discoveryRegistry, pauseSignal, haltSignal)
         }
       }
     }
@@ -56,12 +55,17 @@ private[pubsub] class KafkaSub[F[_]: ConcurrentEffect, V >: Null: AvroSerde](
   consumerGroupId: ConsumerGroupId,
   topic: Topic,
   kafkaConsumer: MVar[F, KafkaConsumer[String, GenericRecord]],
+  discoveryRegistry: Registry[F],
   pauseSignal: SignallingRef[F, Boolean],
   haltSignal: SignallingRef[F, Boolean]
 ) extends Sub[F, V] {
 
-  //TODO: Check if stream is stopped (and initialized) before starting
   override def start: Stream[F, Record[V]] = {
+
+    val discoveryRegistration = discoveryRegistry
+      .register(s"${topic.value}-sub")
+      .interruptWhen(haltSignal)
+      .drain
 
     val create = Stream
       .eval(
@@ -115,12 +119,18 @@ private[pubsub] class KafkaSub[F[_]: ConcurrentEffect, V >: Null: AvroSerde](
         .interruptWhen(haltSignal)
         .onFinalize(shutdown.compile.drain)
 
-    create ++ subscription ++ poll
+    for {
+      paused <- Stream.eval(pauseSignal.get)
+      halted <- Stream.eval(haltSignal.get)
+      records <-
+        if (halted && !paused) discoveryRegistration.merge(create ++ subscription ++ poll)
+        else Stream.raiseError(new IllegalStateException(s"Stream with topic ${topic.value} is already running or paused"))
+    } yield records
   }
 
-  override def pause: F[Unit] = pauseSignal.set(true).map(_ => ())
+  override def pause: F[Unit] = pauseSignal.set(true)
 
-  override def resume: F[Unit] = pauseSignal.set(false).map(_ => ())
+  override def resume: F[Unit] = pauseSignal.set(false)
 
   //TODO: add logic with adminClient
   override def reset: F[Unit] = kafkaConsumer.read.map { consumer =>
@@ -128,7 +138,7 @@ private[pubsub] class KafkaSub[F[_]: ConcurrentEffect, V >: Null: AvroSerde](
     consumer.seekToBeginning(List.empty.asJava) //(partitions.asJava)
   }
 
-  override def stop: F[Unit] = haltSignal.set(true).map(_ => ())
+  override def stop: F[Unit] = haltSignal.set(true)
 
   /**
     * Does only start of being assigned partitions after the first poll
@@ -136,14 +146,4 @@ private[pubsub] class KafkaSub[F[_]: ConcurrentEffect, V >: Null: AvroSerde](
   private def subscribe(topic: Topic): F[Unit] = kafkaConsumer.read.map { consumer =>
     consumer.subscribe(List(topic.value).asJavaCollection)
   }
-}
-
-private[pubsub] case class MockSub[F[_]: Applicative, V](stream: Stream[F, Record[V]]) extends Sub[F, V] {
-
-  override def start: Stream[F, Record[V]] = stream
-  override def pause: F[Unit] = Applicative[F].pure(())
-  override def resume: F[Unit] = Applicative[F].pure(())
-  override def reset: F[Unit] = Applicative[F].pure(())
-  override def stop: F[Unit] = Applicative[F].pure(())
-
 }

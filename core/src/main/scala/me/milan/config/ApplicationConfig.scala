@@ -8,12 +8,12 @@ import cats.Show
 import org.apache.kafka.streams.Topology.AutoOffsetReset
 import org.http4s.Uri
 
-import me.milan.config.WriteSideConfig.UrlPath
+import me.milan.config.AggregateStoreConfig.UrlPath
 import me.milan.domain.Topic
 
 case class ApplicationConfig(
   kafka: KafkaConfig,
-  writeSide: WriteSideConfig
+  aggregateStore: AggregateStoreConfig
 )
 
 case class KafkaConfig(
@@ -50,12 +50,12 @@ object KafkaConfig {
 
 }
 
-case class WriteSideConfig(
+case class AggregateStoreConfig(
   urlPath: UrlPath,
   autoOffsetReset: AutoOffsetReset = AutoOffsetReset.EARLIEST
 )
 
-object WriteSideConfig {
+object AggregateStoreConfig {
   case class UrlPath(value: String) extends AnyVal
 
   implicit val autoOffsetResetShow: Show[AutoOffsetReset] = Show.show(_.toString.toLowerCase)

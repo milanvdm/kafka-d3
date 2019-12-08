@@ -1,4 +1,4 @@
-package me.milan.writeside.kafka
+package me.milan.store.kafka
 
 import scala.collection.JavaConverters._
 

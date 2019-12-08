@@ -1,6 +1,9 @@
 package me.milan.serdes
 
-import com.sksamuel.avro4s.{ Decoder, Encoder, RecordFormat }
+import scala.math.BigDecimal
+import scala.math.BigDecimal.RoundingMode
+
+import com.sksamuel.avro4s._
 import org.apache.avro.Schema
 import org.apache.avro.generic.GenericRecord
 
@@ -12,6 +15,10 @@ trait AvroSerde[T] {
 }
 
 object AvroSerde {
+  implicit val fieldMapper: FieldMapper = DefaultFieldMapper
+  implicit val scalePrecision: ScalePrecision = ScalePrecision(4, 8)
+  implicit val roundingMode: BigDecimal.RoundingMode.Value = RoundingMode.HALF_UP
+
   def apply[T >: Null: Encoder: Decoder](schema: Schema): AvroSerde[T] = new AvroSerde[T] {
 
     private val format = RecordFormat[T](schema)

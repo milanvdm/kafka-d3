@@ -1,4 +1,4 @@
-package me.milan.writeside.kafka
+package me.milan.events.kafka
 
 import scala.concurrent.duration._
 import scala.util.{ Failure, Success, Try }
@@ -9,6 +9,7 @@ import org.apache.kafka.streams.state.{ TimestampedKeyValueStore, ValueAndTimest
 
 import me.milan.domain.{ Aggregator, Topic }
 import me.milan.serdes.AvroSerde
+import me.milan.store.kafka.StoreName
 
 case class ProcessorName(value: String) extends AnyVal
 object ProcessorName {

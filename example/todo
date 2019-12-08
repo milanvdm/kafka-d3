@@ -1,0 +1,5 @@
+- publish user event
+- have writeside running
+- consumer to text
+
+- http endpoints: create, get, update, reset, stop, start
