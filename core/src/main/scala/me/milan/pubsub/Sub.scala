@@ -2,7 +2,7 @@ package me.milan.pubsub
 
 import java.util.ConcurrentModificationException
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.compat.java8.DurationConverters._
 import scala.concurrent.duration._
 
@@ -18,7 +18,8 @@ import org.apache.kafka.clients.consumer.KafkaConsumer
 
 import me.milan.config.KafkaConfig
 import me.milan.discovery.Registry
-import me.milan.domain.{Key, Record, Topic}
+import me.milan.discovery.Registry.RegistryGroup
+import me.milan.domain.{ Key, Record, Topic }
 import me.milan.pubsub.kafka.KConsumer
 import me.milan.pubsub.kafka.KConsumer.ConsumerGroupId
 import me.milan.serdes.AvroSerde
@@ -63,7 +64,7 @@ private[pubsub] class KafkaSub[F[_]: ConcurrentEffect, V >: Null: AvroSerde](
   override def start: Stream[F, Record[V]] = {
 
     val discoveryRegistration = discoveryRegistry
-      .register(s"${topic.value}-sub")
+      .register(RegistryGroup(s"${topic.value}-sub"))
       .interruptWhen(haltSignal)
       .drain
 
@@ -122,9 +123,9 @@ private[pubsub] class KafkaSub[F[_]: ConcurrentEffect, V >: Null: AvroSerde](
     for {
       paused <- Stream.eval(pauseSignal.get)
       halted <- Stream.eval(haltSignal.get)
-      records <-
-        if (halted && !paused) discoveryRegistration.merge(create ++ subscription ++ poll)
-        else Stream.raiseError(new IllegalStateException(s"Stream with topic ${topic.value} is already running or paused"))
+      records <- if (halted && !paused) discoveryRegistration.merge(create ++ subscription ++ poll)
+      else
+        Stream.raiseError(new IllegalStateException(s"Stream with topic ${topic.value} is already running or paused"))
     } yield records
   }
 

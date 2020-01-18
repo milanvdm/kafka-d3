@@ -1,6 +1,6 @@
 package me.milan.clients.kafka
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import cats.effect.ConcurrentEffect
 import cats.instances.all._

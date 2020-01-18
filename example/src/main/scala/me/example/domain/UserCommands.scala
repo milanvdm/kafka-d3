@@ -5,7 +5,7 @@ import me.milan.domain.{Key, Record}
 
 object UserCommands {
 
-  sealed trait UserEvent
+  sealed trait UserEvent extends Product with Serializable
   case class CreateUser(
                           name: String
                         ) extends Command {

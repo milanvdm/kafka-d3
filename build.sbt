@@ -6,7 +6,7 @@ import com.scalapenos.sbt.prompt._
 
 lazy val commonSettings = Seq(
   organization := "me.milanvdm",
-  scalaVersion := "2.12.10",
+  scalaVersion := "2.13.1",
   resolvers ++= Seq(
         "Typesafe Releases" at "https://repo.typesafe.com/typesafe/maven-releases/",
         "confluent.io" at "https://packages.confluent.io/maven/"
@@ -20,7 +20,7 @@ lazy val commonSettings = Seq(
   libraryDependencies ++= Seq(
         compilerPlugin(D.kindProjector)
       ),
-  scalacOptions in (Compile, doc) := (scalacOptions in (Compile, doc)).value.filter(_ != "-Xfatal-warnings"),
+  scalacOptions in (Compile, doc) := (scalacOptions in (Compile, doc)).value.filter(_ != "-Werror"),
   promptTheme := PromptTheme(
         List(
           text("[SBT] ", fg(136)),
@@ -33,23 +33,27 @@ lazy val commonScalacOptions = Seq(
   "-deprecation",
   "-encoding",
   "UTF-8",
+  "-explaintypes",
   "-feature",
   "-language:existentials",
   "-language:higherKinds",
   "-language:implicitConversions",
   "-language:experimental.macros",
   "-unchecked",
-  "-Xfatal-warnings",
-  "-Xfuture",
+  "-Werror",
+  "-Wdead-code",
+  "-Wextra-implicit",
+  "-Ywarn-unused",
+  "-Wvalue-discard",
   "-Xlint",
-  "-Xlog-reflective-calls",
-  "-Ydelambdafy:method",
-  "-Yno-adapted-args",
-  "-Ypartial-unification",
+  "-Xcheckinit",
+  "-Xfatal-warnings",
+  "-Ybackend-parallelism", java.lang.Runtime.getRuntime.availableProcessors().toString,
   "-Ywarn-dead-code",
-  "-Ywarn-value-discard",
-  "-Ywarn-unused-import",
-  "-Ywarn-inaccessible"
+  "-Ywarn-extra-implicit",
+  "-Ywarn-numeric-widen",
+  "-Ywarn-value-discard"
+
 )
 
 lazy val dockerSettings = Seq(
@@ -78,8 +82,8 @@ lazy val D = new {
     val circe = "0.12.3"
     val consulClient = "1.3.9"
     val fs2 = "2.1.0"
-    val http4s = "0.20.15"
-    val kafka = "2.3.1"
+    val http4s = "0.21.0-M6"
+    val kafka = "2.4.0"
     val kafkaConfluent = "5.3.1"
     val pureConfig = "0.12.1"
     val scalaJava8 = "0.9.0"
@@ -200,5 +204,5 @@ enablePlugins(DockerPlugin)
 // Commands
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-addCommandAlias("update", ";dependencyUpdates")
+addCommandAlias("update", ";dependencyUpdates; reload plugins; dependencyUpdates; reload return")
 addCommandAlias("fcompile", ";scalafmtSbt;compile;test:compile;it:compile")

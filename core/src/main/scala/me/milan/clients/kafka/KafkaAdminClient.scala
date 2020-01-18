@@ -3,7 +3,7 @@ package me.milan.clients.kafka
 import java.time.OffsetDateTime
 import java.util.Properties
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.compat.java8.DurationConverters._
 import scala.concurrent.duration._
 
@@ -34,7 +34,7 @@ import me.milan.domain.Error
 
 object KafkaAdminClient {
 
-  sealed trait LogOffsetResult
+  sealed trait LogOffsetResult extends Product with Serializable
   object LogOffsetResult {
     case class LogOffset(value: Long) extends LogOffsetResult
     case object Unknown extends LogOffsetResult
@@ -120,7 +120,7 @@ class KafkaAdminClient[F[_]: ConcurrentEffect](
 
   def deleteTopic(topic: Topic): F[Unit] = deleteTopics(Set(topic))
 
-  def deleteAllTopics: F[Unit] =
+  def deleteAllTopics(): F[Unit] =
     for {
       topics <- getTopics()
       _ <- deleteTopics(topics)

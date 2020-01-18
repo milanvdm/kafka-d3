@@ -4,7 +4,7 @@ import me.milan.domain.Key
 
 object UserEvents {
 
-  sealed trait UserEvent
+  sealed trait UserEvent extends Product with Serializable
   case class UserCreated(
     id: Key,
     name: String

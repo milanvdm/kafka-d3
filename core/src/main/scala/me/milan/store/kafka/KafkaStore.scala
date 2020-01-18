@@ -1,6 +1,6 @@
 package me.milan.store.kafka
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import io.confluent.kafka.serializers.AbstractKafkaAvroSerDeConfig
 import io.confluent.kafka.streams.serdes.avro.GenericAvroSerde
